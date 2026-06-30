@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- AC-3 — consulta o App Insights (Log Analytics workspace que recebe a telemetria
+         dos componentes) por correlationId via SDK OFICIAL Azure.Monitor.Query
+         (LogsQueryClient). Substitui a antiga REST api.applicationinsights.io (em
+         desativação). Versões PINADAS (sem floating/wildcard — ADE-002 Inv 1).
+         API confirmada contra docs.microsoft.com (Azure SDK for .NET):
+           LogsQueryClient(TokenCredential).QueryWorkspaceAsync(workspaceId, kql, timeRange). -->
+    <PackageReference Include="Azure.Monitor.Query" Version="1.6.0" />
+    <PackageReference Include="Azure.Identity" Version="1.13.1" />
+
+    <!-- AC-2/AC-3/AC-6 — Azure SignalR Service (Service Mode: Default, Hub clássico).
+         AddSignalR().AddAzureSignalR() liga o Hub FlowHub ao SignalR Service gerenciado
+         via a connection string AzureSignalRConnectionString (App Setting). API real do
+         pacote Microsoft.Azure.SignalR. -->
+    <PackageReference Include="Microsoft.Azure.SignalR" Version="1.29.0" />
+
+    <!-- Observabilidade de borda (ADE-000 Inv 5) — no-op sem APPLICATIONINSIGHTS_CONNECTION_STRING. -->
+    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.22.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Permite ao projeto de testes exercitar membros internal (parse de traces,
+         mapeamento trace → evento tipado) sem expô-los publicamente. -->
+    <InternalsVisibleTo Include="Fifa2026.V2.FlowEvents.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

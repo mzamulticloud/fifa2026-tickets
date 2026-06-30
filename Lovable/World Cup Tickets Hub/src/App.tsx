@@ -7,6 +7,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { CartProvider } from "@/contexts/CartProvider";
 import { AuthProvider } from "@/contexts/AuthProvider";
+// Story 2.11 / Quartas (F3) — provider do login ADMIN workforce (Entra ID + App Role),
+// escopado à área /admin. Instância MSAL separada da CIAM (ver src/lib/authAdmin.ts).
+import { AdminAuthProvider } from "@/contexts/AdminAuthProvider";
+import { MsalProvider } from "@azure/msal-react";
+import { msalInstance } from "@/lib/authV2";
 import Layout from "@/components/layout/Layout";
 import Index from "./pages/Index";
 
@@ -31,6 +36,8 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const TicketVerify = lazy(() => import("./pages/TicketVerify"));
 const WorldCupHistory = lazy(() => import("./pages/WorldCupHistory"));
 const WorldCupDetail = lazy(() => import("./pages/WorldCupDetail"));
+// Story 2.6 / F6 — Flow Visualizer (rota /flow). Lazy: bundle separado (framer-motion + signalr).
+const Flow = lazy(() => import("./pages/Flow"));
 
 // Admin pages: bundle separado, só carrega para admins.
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
@@ -60,9 +67,12 @@ const PageLoader = () => (
   </div>
 );
 
+// Story 2.3 / F3 — MsalProvider envolve a app para o fluxo de identidade v2 (Entra).
+// Coexiste com AuthProvider (v1 bcrypt+JWT, intocado) — comparação didática v1 vs v2.
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      <MsalProvider instance={msalInstance}>
       <AuthProvider>
         <CartProvider>
           <Toaster />
@@ -70,8 +80,8 @@ const App = () => (
           <BrowserRouter>
             <Suspense fallback={<PageLoader />}>
               <Routes>
-                {/* Admin Routes */}
-                <Route path="/admin" element={<AdminLayout />}>
+                {/* Admin Routes — Quartas (F3): gate via Entra workforce + App Role "Admin". */}
+                <Route path="/admin" element={<AdminAuthProvider><AdminLayout /></AdminAuthProvider>}>
                   <Route index element={<Dashboard />} />
                   <Route path="matches" element={<AdminMatches />} />
                   <Route path="stadiums" element={<AdminStadiums />} />
@@ -99,6 +109,8 @@ const App = () => (
                 <Route path="/checkout" element={<Layout><Checkout /></Layout>} />
                 <Route path="/payment-confirmation" element={<Layout><PaymentConfirmation /></Layout>} />
                 <Route path="/ticket/verify/:id" element={<Layout><TicketVerify /></Layout>} />
+                {/* Story 2.6 / F6 — Flow Visualizer em tempo real (Gateway YARP → SQL). */}
+                <Route path="/flow" element={<Layout><Flow /></Layout>} />
                 <Route path="/profile" element={<Layout><Profile /></Layout>} />
                 <Route path="*" element={<Layout><NotFound /></Layout>} />
               </Routes>
@@ -106,6 +118,7 @@ const App = () => (
           </BrowserRouter>
         </CartProvider>
       </AuthProvider>
+      </MsalProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

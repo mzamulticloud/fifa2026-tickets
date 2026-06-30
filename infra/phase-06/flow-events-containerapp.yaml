@@ -1,0 +1,71 @@
+# Story 2.6 (F6) — Definição declarativa do Container App do FlowEvents (referência IaC).
+#
+# Contrato de configuração versionado do serviço FlowEvents (.NET 8, ASP.NET Core) em
+# Azure Container Apps. NÃO provisiona nada sozinho — é (a) fonte da verdade do workflow
+# .github/workflows/deploy-phase-06.yml e (b) base para `az containerapp create/update
+# --yaml` se a turma preferir aplicar o YAML diretamente.
+#
+# Placeholders <...> são substituídos pelos valores do aluno (vars/secrets do repo).
+#
+# Decisões fixadas:
+#   - Imagem: build local (src/Fifa2026.V2.FlowEvents/Dockerfile) → ACR do aluno.
+#   - Ingress: external, HTTPS only    → o front e o gateway falam com o serviço.
+#   - Target port: 8080                → ASPNETCORE_URLS=http://+:8080 (Dockerfile).
+#   - Service Mode SignalR: Default    → FlowHub clássico via AddAzureSignalR (AC-2/AC-3).
+#   - Identity: SystemAssigned         → Log Analytics Reader no workspace (AC-3).
+#   - Scale: min 0 / max 2, 0.5 vCPU / 1Gi → Consumption, scale-to-zero (didático).
+#
+# Aplicar (alternativa ao workflow):
+#   az containerapp create --name <flow-app> --resource-group <rg> \
+#     --environment <cae-fifa2026-xy> --yaml infra/phase-06/flow-events-containerapp.yaml
+
+type: Microsoft.App/containerApps
+name: <PHASE06_FLOW_APP_NAME>            # ex.: ca-flow-fifa2026-xy
+identity:
+  type: SystemAssigned                   # AC-3 — Managed Identity p/ ler o Log Analytics
+properties:
+  managedEnvironmentId: <CAE_RESOURCE_ID>   # mesmo CAE do gateway/n8n/mcp (cae-fifa2026-xy)
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: true                     # acesso externo via HTTPS (gateway + front)
+      transport: auto                    # 'auto' habilita WebSocket (SignalR fallback)
+      targetPort: 8080                   # porta do FlowEvents (Dockerfile)
+      allowInsecure: false               # HTTPS only
+      traffic:
+        - latestRevision: true
+          weight: 100
+    secrets:
+      # Connection string do Azure SignalR Service — nunca em texto no YAML versionado.
+      - name: azure-signalr-conn
+        value: <AZURE_SIGNALR_CONNECTION_STRING>   # secret do repo, aplicado no deploy
+    registries:
+      - server: <ACR_LOGIN_SERVER>
+        identity: system
+  template:
+    containers:
+      - name: flow-events
+        image: <ACR_LOGIN_SERVER>/flow-events:<TAG>
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          # AC-2/AC-3 — SignalR Service (Service Mode Default). Secretref (nunca em texto).
+          - name: AzureSignalRConnectionString
+            secretRef: azure-signalr-conn
+          # AC-3 — workspace Log Analytics que recebe a telemetria do App Insights.
+          - name: LogAnalyticsWorkspaceId
+            value: <LOG_ANALYTICS_WORKSPACE_ID>
+          # AC-9 — origin do front (CORS; SignalR usa credentials → não pode ser '*').
+          - name: FrontendOrigin
+            value: <FRONTEND_ORIGIN>
+          # Observabilidade de borda (ADE-000 Inv 5) — no-op se ausente.
+          - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+            value: <APPINSIGHTS_CONNECTION_STRING>
+    scale:
+      minReplicas: 0                     # scale-to-zero (didático; cold start aceitável)
+      maxReplicas: 2
+
+# NOTA pós-deploy (AC-3): conceder à Managed Identity do Container App o papel
+# "Log Analytics Reader" (ou "Monitoring Reader") no workspace, senão o LogsQueryClient
+# (DefaultAzureCredential) recebe 403 ao consultar os traces.

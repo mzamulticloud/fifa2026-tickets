@@ -51,33 +51,15 @@ az deployment group show \
   --query properties.outputs
 ```
 
-> **Nota:** O Bicep cria o backend com `ipSecurityRestrictionsDefaultAction: 'Allow'` propositalmente, porque travar o backend ANTES dele existir e o frontend ter outbound IPs gera deadlock. O passo de allowlist + Deny default é feito **depois** (passo 6 abaixo).
+> **Nota:** O Bicep cria o backend com `ipSecurityRestrictionsDefaultAction: 'Allow'` (público). No B1 isso é o estado **final** — veja abaixo.
 
-### Passo 6 (manual ou via provision.sh) — Tornar o backend privado
+### Segurança do backend no B1 — NÃO travar por IP
 
-```bash
-RG=fifa2026-rg
-WEB_FRONT=fifa2026-web
-WEB_BACK=fifa2026-back
+> ⚠️ **NÃO** aplique allowlist de outbound IPs do frontend + default Deny no backend rodando em **B1**. O reverse proxy `/api` do IIS/ARR **não funciona** no B1 (retorna 404), então o frontend embute `VITE_API_URL` absoluto e o **browser chama o backend direto** — as requisições partem do IP do **usuário final**, não do frontend. Travar por IP do frontend devolve **403** ao usuário e quebra o app.
+>
+> No B1 a segurança do backend é **CORS** (`FRONTEND_URL`) + **JWT**, não rede. (Detalhes em [`../DEPLOY.md`](../DEPLOY.md) → Cenário B.)
 
-# Pegar IPs outbound do front
-mapfile -t FRONT_IPS < <(az webapp show -g $RG -n $WEB_FRONT \
-  --query "possibleOutboundIpAddresses" -o tsv | tr ',' '\n' | sort -u)
-
-# Allowlist
-P=100
-for IP in "${FRONT_IPS[@]}"; do
-  az webapp config access-restriction add \
-    -g $RG -n $WEB_BACK \
-    --rule-name "frontend-${P}" \
-    --action Allow --ip-address "${IP}/32" --priority $P
-  P=$((P+1))
-done
-
-# Default Deny
-az webapp config access-restriction set \
-  -g $RG -n $WEB_BACK --default-action Deny
-```
+O snippet de allowlist/Deny que existia aqui (e ainda existe em `provision.sh`/`provision.ps1`) só é válido no **Cenário A (VMs)** ou em App Service **Standard+** com VNet Integration, onde o proxy server-side funciona. Para privacidade real no B1, migre para Standard+ com Private Endpoint + VNet Integration.
 
 ---
 

@@ -1,0 +1,196 @@
+<mxfile host="app.diagrams.net" type="device" agent="aiox-ux-uma">
+  <diagram name="Quartas F2 - Identidade dois mundos" id="quartas-f2-dois-mundos">
+    <mxGraphModel dx="1422" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1760" pageHeight="980" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ============ TITULO ============ -->
+        <mxCell id="title" value="🏆 Quartas de Final (F2/F3) — Identidade em DOIS MUNDOS · Gateway YARP guardião issuer-agnóstico" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;fontColor=#B58A00;" vertex="1" parent="1">
+          <mxGeometry x="48" y="20" width="1300" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Cliente → Microsoft Entra External ID (CIAM · ciamlogin.com)  ·  Admin → Entra ID workforce (login.microsoftonline.com · App Role &#39;Admin&#39;)  ·  pipeline oid → X-Entra-OID → entra_oid INALTERADO (story 2.11 · ADE-007 v1.1 Inv 1/2/3/5/7)" style="text;html=1;fontSize=12;align=left;verticalAlign=middle;fontColor=#605E5C;" vertex="1" parent="1">
+          <mxGeometry x="48" y="50" width="1620" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- ============ BANDA MUNDO CLIENTE (CIAM) ============ -->
+        <mxCell id="bandCiam" value="" style="rounded=1;arcSize=3;html=1;fillColor=#E6F7F4;strokeColor=#0E8A7D;strokeWidth=2;dashed=1;dashPattern=8 5;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="48" y="92" width="430" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="bandCiamLbl" value="MUNDO 1 · CLIENTE  (CIAM / B2C consumer)" style="rounded=1;arcSize=40;html=1;fillColor=#0E8A7D;strokeColor=#0E8A7D;fontColor=#FFFFFF;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="100" width="300" height="22" as="geometry" />
+        </mxCell>
+
+        <!-- ============ BANDA MUNDO ADMIN (workforce) ============ -->
+        <mxCell id="bandAdmin" value="" style="rounded=1;arcSize=3;html=1;fillColor=#EFF6FC;strokeColor=#0078D4;strokeWidth=2;dashed=1;dashPattern=8 5;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="48" y="392" width="430" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="bandAdminLbl" value="MUNDO 2 · ADMIN  (workforce / B2B funcionário)" style="rounded=1;arcSize=40;html=1;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="400" width="320" height="22" as="geometry" />
+        </mxCell>
+
+        <!-- ============ IDENTIDADE: CLIENTE → Entra External ID (CIAM) ============ -->
+        <mxCell id="ciam" value="Microsoft Entra External ID&#10;(CIAM)&#10;&lt;tenant&gt;.ciamlogin.com&#10;social Google + email/OTP" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=10;image=img/lib/azure2/identity/Azure_AD_B2C.svg;" vertex="1" parent="1">
+          <mxGeometry x="90" y="170" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ciamNote" value="sign-up self-service&#10;Authorization Code + PKCE&#10;emite token · claim oid" style="rounded=1;arcSize=8;html=1;fillColor=#E6F7F4;strokeColor=#0E8A7D;fontColor=#0E8A7D;fontSize=9;align=left;verticalAlign=middle;spacingLeft=8;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="220" y="160" width="230" height="56" as="geometry" />
+        </mxCell>
+
+        <!-- ============ IDENTIDADE: ADMIN → Entra ID workforce ============ -->
+        <mxCell id="workforce" value="Entra ID workforce&#10;login.microsoftonline.com&#10;App Role: Admin" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=10;image=img/lib/azure2/identity/Azure_Active_Directory.svg;" vertex="1" parent="1">
+          <mxGeometry x="90" y="450" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="wfNote" value="App Registration admin (hands-on)&#10;1 App Role &#39;Admin&#39; · claim roles&#10;emite token · claim oid" style="rounded=1;arcSize=8;html=1;fillColor=#EFF6FC;strokeColor=#0078D4;fontColor=#0078D4;fontSize=9;align=left;verticalAlign=middle;spacingLeft=8;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="220" y="442" width="230" height="56" as="geometry" />
+        </mxCell>
+
+        <!-- ============ BROWSER SPA ============ -->
+        <mxCell id="browser" value="Browser SPA (Vite / React)&#10;authV2.ts · MSAL.js&#10;CIAM login (cliente)&#10;Admin login (admin)" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=10;image=img/lib/azure2/general/Browser.svg;" vertex="1" parent="1">
+          <mxGeometry x="565" y="360" width="56" height="56" as="geometry" />
+        </mxCell>
+
+        <!-- ============ GATEWAY YARP (guardião) ============ -->
+        <mxCell id="gwContainer" value="Container App · gateway-&lt;iniciais&gt;  ·  ASP.NET Core + YARP (.NET 8)  —  O GUARDIÃO" style="rounded=1;arcSize=4;html=1;fillColor=#F3F9FD;strokeColor=#8661C5;strokeWidth=2.5;fontColor=#5C2E91;fontSize=12;fontStyle=1;verticalAlign=top;spacingTop=8;align=center;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="760" y="118" width="470" height="560" as="geometry" />
+        </mxCell>
+        <mxCell id="gwIcon" value="" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=9;image=img/lib/azure2/app_services/App_Services.svg;" vertex="1" parent="1">
+          <mxGeometry x="1175" y="128" width="40" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- policies (itens do gateway) -->
+        <mxCell id="pCors" value="AddCors — CORS restrito ao domínio do front" style="rounded=1;arcSize=10;html=1;fillColor=#EFF6FC;strokeColor=#0078D4;fontColor=#0078D4;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="785" y="180" width="410" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="pRate" value="AddRateLimiter — fixed window 5/min → 6ª chamada = HTTP 429" style="rounded=1;arcSize=10;html=1;fillColor=#EFF6FC;strokeColor=#0078D4;fontColor=#0078D4;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="785" y="222" width="410" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="pCache" value="AddOutputCache — 30s no GET status · 2ª resposta X-Cache: HIT (&lt;50ms)" style="rounded=1;arcSize=10;html=1;fillColor=#EFF6FC;strokeColor=#0078D4;fontColor=#0078D4;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="785" y="264" width="410" height="34" as="geometry" />
+        </mxCell>
+
+        <!-- divisor de identidade no gateway -->
+        <mxCell id="authBox" value="" style="rounded=1;arcSize=4;html=1;fillColor=none;strokeColor=#8661C5;strokeWidth=1.5;dashed=1;dashPattern=6 4;" vertex="1" parent="1">
+          <mxGeometry x="785" y="312" width="410" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="authBoxLbl" value="★ NOVO nas QUARTAS — autenticação dual-issuer" style="text;html=1;fontSize=10;fontStyle=1;fontColor=#5C2E91;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="795" y="316" width="390" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="pCiamJwt" value="AddJwtBearer &quot;Ciam&quot;  →  discovery &lt;tenant&gt;.ciamlogin.com/.../v2.0&#10;valida iss/aud/assinatura/exp do token CIAM" style="rounded=1;arcSize=10;html=1;fillColor=#E6F7F4;strokeColor=#0E8A7D;fontColor=#0E8A7D;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="795" y="338" width="390" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="pAdminJwt" value="AddJwtBearer &quot;Admin&quot;  →  discovery login.microsoftonline.com/&lt;tenant&gt;/v2.0&#10;valida token workforce · AdminOnly → 403 p/ cliente CIAM" style="rounded=1;arcSize=10;html=1;fillColor=#EFF6FC;strokeColor=#0078D4;fontColor=#0078D4;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="795" y="386" width="390" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="pSelector" value="★ PolicyScheme &quot;Selector&quot; — roteia pelo ISSUER do token (CIAM vs workforce)&#10;ponto novo das Quartas: um gateway, dois mundos, seleção de esquema (não troca de string)" style="rounded=1;arcSize=10;html=1;fillColor=#F3EEFB;strokeColor=#8661C5;fontColor=#5C2E91;fontSize=10;fontStyle=1;align=left;verticalAlign=middle;spacingLeft=10;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="795" y="434" width="390" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="pOid" value="extrai claim oid → injeta header X-Entra-OID (anti-spoofing: strip do header de entrada) · ISSUER-AGNÓSTICO (herdado de 2.3)" style="rounded=1;arcSize=10;html=1;fillColor=#FFF7E6;strokeColor=#B58A00;fontColor=#8A6D00;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="785" y="486" width="410" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="pProxy" value="MapReverseProxy → Function App F1 (downstream com X-Entra-OID)" style="rounded=1;arcSize=10;html=1;fillColor=#F3F2F1;strokeColor=#8661C5;fontColor=#5C2E91;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="785" y="540" width="410" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ============ FUNCTION F1 (INALTERADA) ============ -->
+        <mxCell id="fnContainer" value="Pipeline F1 — INALTERADO (zero mudança de código)" style="rounded=1;arcSize=4;html=1;fillColor=#FAFAFA;strokeColor=#A19F9D;strokeWidth=1.5;dashed=1;dashPattern=6 4;fontColor=#605E5C;fontSize=11;fontStyle=1;verticalAlign=top;spacingTop=6;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1290" y="118" width="430" height="560" as="geometry" />
+        </mxCell>
+
+        <mxCell id="entry" value="PurchaseEntryFunction&#10;(INALTERADA) · lê X-Entra-OID" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=10;image=img/lib/azure2/compute/Function_Apps.svg;" vertex="1" parent="1">
+          <mxGeometry x="1330" y="170" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="sbus" value="Service Bus&#10;fila tickets-purchase" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=10;image=img/lib/azure2/integration/Service_Bus.svg;" vertex="1" parent="1">
+          <mxGeometry x="1330" y="300" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="consumer" value="PurchaseConsumerFunction&#10;(idempotente · 1 por linha)" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=10;image=img/lib/azure2/compute/Function_Apps.svg;" vertex="1" parent="1">
+          <mxGeometry x="1560" y="300" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="appi" value="Application Insights&#10;rastreio orderId / correlationId" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=10;image=img/lib/azure2/devops/Application_Insights.svg;" vertex="1" parent="1">
+          <mxGeometry x="1560" y="440" width="50" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ============ SQL (dois eixos) ============ -->
+        <mxCell id="sql" value="Azure SQL" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;fontStyle=1;image=img/lib/azure2/databases/SQL_Database.svg;" vertex="1" parent="1">
+          <mxGeometry x="1345" y="560" width="56" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="sqlAxis1" value="EIXO COMPRA (transacional) — ZERO-DDL&#10;purchases.entra_oid (oid da compra v2)&#10;coexiste com purchases.user_id (v1) na mesma tabela" style="rounded=1;arcSize=8;html=1;fillColor=#E6F7F4;strokeColor=#0E8A7D;fontColor=#0E8A7D;fontSize=9;align=left;verticalAlign=middle;spacingLeft=8;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="548" width="280" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="sqlAxis2" value="EIXO CADASTRO (durável) — 1 migration aditiva&#10;users.entra_oid (GUID CIAM) via phase-04-ciam-link.sql&#10;mesma linha de users: password (bcrypt v1) + entra_oid (CIAM v2) = COEXISTE" style="rounded=1;arcSize=8;html=1;fillColor=#FFF7E6;strokeColor=#B58A00;fontColor=#8A6D00;fontSize=9;align=left;verticalAlign=middle;spacingLeft=8;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="602" width="280" height="56" as="geometry" />
+        </mxCell>
+
+        <!-- ============ EDGES — fluxo numerado ============ -->
+        <!-- login CIAM -->
+        <mxCell id="eCiamLogin" value="login CIAM (PKCE)" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;flowAnimation=1;strokeColor=#0E8A7D;strokeWidth=2;fontColor=#0E8A7D;fontSize=10;labelBackgroundColor=#FFFFFF;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.2;entryDx=0;entryDy=0;" edge="1" parent="1" source="ciam" target="browser">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eAdminLogin" value="login admin" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;flowAnimation=1;strokeColor=#0078D4;strokeWidth=2;fontColor=#0078D4;fontSize=10;labelBackgroundColor=#FFFFFF;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.8;entryDx=0;entryDy=0;" edge="1" parent="1" source="workforce" target="browser">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 1) POST /purchase -->
+        <mxCell id="e1" value="① POST /purchase&#10;Authorization: Bearer &lt;token&gt;" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;flowAnimation=1;strokeColor=#5C2E91;strokeWidth=3;fontColor=#5C2E91;fontSize=11;fontStyle=1;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.32;entryDx=0;entryDy=0;" edge="1" parent="1" source="browser" target="gwContainer">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 2) gateway → entry (X-Entra-OID) -->
+        <mxCell id="e2" value="② proxy + X-Entra-OID" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;flowAnimation=1;strokeColor=#B58A00;strokeWidth=2.5;fontColor=#8A6D00;fontSize=10;fontStyle=1;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.82;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="pProxy" target="entry">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 3) entry → SQL (grava purchases.entra_oid) -->
+        <mxCell id="e3" value="③ INSERT purchases.entra_oid" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;flowAnimation=1;strokeColor=#0E8A7D;strokeWidth=2;fontColor=#0E8A7D;fontSize=10;labelBackgroundColor=#FFFFFF;exitX=0.2;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="entry" target="sql">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1310" y="540" /></Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 4) fan-out F1: entry → sbus → consumer → sql -->
+        <mxCell id="e4a" value="④ fan-out" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;flowAnimation=1;strokeColor=#0E8A7D;strokeWidth=2;fontColor=#0E8A7D;fontSize=10;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="entry" target="sbus">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4b" value="entrega" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;flowAnimation=1;strokeColor=#0E8A7D;strokeWidth=2;fontColor=#0E8A7D;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="sbus" target="consumer">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4c" value="INSERT" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;flowAnimation=1;strokeColor=#0E8A7D;strokeWidth=2;fontColor=#0E8A7D;fontSize=10;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.9;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="consumer" target="sql">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- telemetria -->
+        <mxCell id="eTel1" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=open;dashed=1;strokeColor=#68217A;" edge="1" parent="1" source="entry" target="appi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eTel2" value="telemetria" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=open;dashed=1;strokeColor=#68217A;fontColor=#68217A;fontSize=9;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="consumer" target="appi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- migração v1→CIAM (cadastro) -->
+        <mxCell id="eMig" value="⑤ migração hands-on v1→CIAM&#10;UPDATE users SET entra_oid (idempotente)" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=0;endArrow=block;dashed=1;strokeColor=#B58A00;strokeWidth=2;fontColor=#8A6D00;fontSize=10;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ciam" target="sql">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="115" y="700" /><mxPoint x="1373" y="700" /></Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ============ LEGENDA / NOTAS ============ -->
+        <mxCell id="noteMuda" value="O que MUDA vs 2.3:  ① authority → CIAM (ciamlogin.com no authV2.ts e no AddJwtBearer)  ·  ② 2º esquema admin (AddJwtBearer &#39;Admin&#39; workforce) + PolicyScheme &#39;Selector&#39;  ·  ③ migration aditiva users.entra_oid (phase-04-ciam-link.sql)" style="rounded=1;arcSize=6;html=1;fillColor=#F3EEFB;strokeColor=#8661C5;fontColor=#5C2E91;fontSize=11;align=left;verticalAlign=middle;spacingLeft=12;spacingRight=12;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="48" y="720" width="830" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="noteNaoMuda" value="O que NÃO muda (issuer-agnóstico):  o pipeline oid → X-Entra-OID → entra_oid é idêntico a F1/F3.  PurchaseEntryFunction, Service Bus, Consumer e purchases.entra_oid (zero-DDL) intactos.  O gateway valida QUALQUER issuer por discovery (ADE-004 Inv 4) — adicionar o CIAM é configuração, não reescrita." style="rounded=1;arcSize=6;html=1;fillColor=#FFF7E6;strokeColor=#B58A00;fontColor=#8A6D00;fontSize=11;align=left;verticalAlign=middle;spacingLeft=12;spacingRight=12;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="890" y="720" width="830" height="56" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legendFlow" value="Fluxo (animado):  login CIAM / admin → ① POST /purchase (Bearer) → Gateway YARP (CORS · rate-limit 429 · cache HIT · dual-issuer JWT · Selector · X-Entra-OID) → ② proxy → ③ INSERT purchases.entra_oid → ④ fan-out F1 (Service Bus → Consumer → SQL)  ·  ⑤ migração de cadastro users.entra_oid (hands-on)" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#605E5C;" vertex="1" parent="1">
+          <mxGeometry x="48" y="788" width="1680" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legendStencil" value="Nota de stencils: Azure2 não possui ícone dedicado de &#39;Entra External ID&#39; nem de &#39;Container Apps&#39;. Fallbacks: Azure_AD_B2C.svg p/ CIAM (B2C é o ancestral do External ID), Azure_Active_Directory.svg p/ workforce, App_Services.svg p/ o Container App do gateway. Rótulos textuais nomeiam o produto correto (Entra External ID / Container App)." style="text;html=1;fontSize=9;fontStyle=2;align=left;verticalAlign=middle;fontColor=#8A8886;" vertex="1" parent="1">
+          <mxGeometry x="48" y="812" width="1680" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="foot" value="TFTEC Cloud · Copa do Mundo Azure 2026 — Quartas de Final (F2/F3) · story 2.11 · fonte: Dev Notes &#39;Arquitetura técnica completa (estado pós-Quartas)&#39; + ADE-007 v1.1 Inv 1/2/3/5/7" style="text;html=1;fontSize=11;fontColor=#605E5C;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="48" y="848" width="1400" height="22" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

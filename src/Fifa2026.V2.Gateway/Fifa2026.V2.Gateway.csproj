@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- WebApplicationFactory<Program> nos testes de integração exige Program público/parcial. -->
+    <RootNamespace>Fifa2026.V2.Gateway</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      YARP (Yet Another Reverse Proxy) — gateway-as-code (ADE-004 Invariante 1).
+      Versão estável 2.2.0, target net8.0 (verificado no nuspec oficial — AC-14 anti-hallucination).
+    -->
+    <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
+
+    <!--
+      JWT placeholder preparatório para F3 (ADE-004 Inv 4 / ADE-005 Inv 4).
+      Microsoft.AspNetCore.Authentication.JwtBearer NÃO faz parte do shared framework
+      Microsoft.AspNetCore.App por padrão — precisa ser referenciado explicitamente.
+      Versão 8.0.x alinhada ao TargetFramework net8.0.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.8" />
+
+    <!--
+      Observabilidade de borda (AC-11 / ADE-000 Inv 5): o gateway é o nó zero do
+      Flow Visualizer (F6). App Insights captura o trace correlacionado.
+    -->
+    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.22.0" />
+  </ItemGroup>
+
+  <!--
+    AddRateLimiter (Microsoft.AspNetCore.RateLimiting) e AddOutputCache
+    (Microsoft.AspNetCore.OutputCaching) fazem parte do shared framework
+    Microsoft.AspNetCore.App (in-box no .NET 8) — não exigem PackageReference.
+  -->
+</Project>

@@ -1,0 +1,16 @@
+schema: 1
+story: '2.10'
+gate: CONCERNS
+status_reason: 'Implementação completa e correta — 12/12 AC atendidos no código, 64/64 testes verdes, build limpo. Única lacuna: fan-out real via [ServiceBusOutput] string[] não foi validado em runtime (e2e no HML), apenas em testes unitários.'
+reviewer: 'Quinn'
+updated: '2026-06-24T00:00:00Z'
+top_issues:
+  - id: 'TEST-001'
+    severity: medium
+    finding: 'Fan-out declarativo via [ServiceBusOutput] em string[] (Opção B) só é comprovado em runtime do Azure Functions host — testes unitários validam o array EntryOutput.Messages, mas não que o host realmente publica N mensagens distintas. Carrinho de 2 itens → 2 linhas em purchases com mesmo orderId e correlationIds distintos NÃO foi executado e2e no HML.'
+    suggested_action: 'Executar smoke e2e no HML (Pre-Deployment já listado na story): POST carrinho 2 itens → verificar 2 linhas em purchases, mesmo (rastreabilidade) orderId, correlationIds distintos. Bloqueante para deploy produtivo, não para aprovação do gate dado o lastro de 64 testes + build verde.'
+  - id: 'REL-001'
+    severity: low
+    finding: 'Resposta 202 usa AcceptedResult com Location apontando para correlationIds[0] mesmo em carrinho multi-item — o Location só rastreia a primeira linha (as demais são consultadas via correlationIds[]). Comportamento intencional e documentado, não há endpoint de rollup por orderId (fora de escopo).'
+    suggested_action: 'Nenhuma ação nesta story. Rollup de status por orderId é story futura (declarado em Fora de Escopo).'
+waiver: { active: false }

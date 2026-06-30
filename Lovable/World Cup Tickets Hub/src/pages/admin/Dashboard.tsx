@@ -13,6 +13,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
+// Quartas / "admin 100% workforce": stats e sales vêm do gateway com token WORKFORCE.
+// matches/stadiums/teams continuam públicos (api.*, sem auth).
+import * as apiAdmin from '@/lib/apiAdminV2';
 
 interface AdminStats {
   total_users: number;
@@ -42,12 +45,12 @@ interface SaleRow {
 const Dashboard: React.FC = () => {
   const { data: statsData, isLoading: statsLoading, isError: statsError } = useQuery({
     queryKey: ['admin', 'stats'],
-    queryFn: () => api.getAdminStats(),
+    queryFn: () => apiAdmin.getAdminStats(),
   });
 
   const { data: salesData, isLoading: salesLoading, isError: salesError } = useQuery({
     queryKey: ['admin', 'sales'],
-    queryFn: () => api.getSales(),
+    queryFn: () => apiAdmin.getSales(),
   });
 
   const { data: matchesData, isError: matchesError } = useQuery({

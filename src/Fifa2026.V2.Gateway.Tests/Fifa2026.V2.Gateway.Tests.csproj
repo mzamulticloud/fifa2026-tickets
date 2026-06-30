@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <!-- WebApplicationFactory<Program> para testes de integração do pipeline. -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.8" />
+    <!-- Mock do backend Function F1 (stub HTTP) — AC-4/AC-6 sem Azure real. -->
+    <PackageReference Include="WireMock.Net" Version="1.25.0" />
+    <!--
+      Story 2.3 AC-12 — gera tokens JWT de teste com chave RSA conhecida para validar
+      os cenários de aceitação/rejeição (válido→200, expirado→401, issuer→401, aud→401)
+      sem depender do Entra real. System.IdentityModel.Tokens.Jwt (par do
+      Microsoft.IdentityModel.Tokens já presente via JwtBearer no projeto do gateway).
+    -->
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Fifa2026.V2.Gateway\Fifa2026.V2.Gateway.csproj" />
+  </ItemGroup>
+</Project>

@@ -130,31 +130,15 @@ az webapp config set \
 
 az webapp update -g "$RG" -n "$WEB_FRONT" --https-only true -o table
 
-# ----- 6. Access Restriction no backend -----
-echo ">> 6/6  Access Restriction no backend: allowlist dos IPs do front"
-mapfile -t FRONT_IPS < <(az webapp show -g "$RG" -n "$WEB_FRONT" \
-  --query "possibleOutboundIpAddresses" -o tsv | tr ',' '\n' | sort -u)
-
-PRIORITY=100
-for IP in "${FRONT_IPS[@]}"; do
-  echo "   allow $IP/32 (priority $PRIORITY)"
-  az webapp config access-restriction add \
-    --resource-group "$RG" \
-    --name "$WEB_BACK" \
-    --rule-name "frontend-${PRIORITY}" \
-    --action Allow \
-    --ip-address "${IP}/32" \
-    --priority "$PRIORITY" \
-    >/dev/null
-  PRIORITY=$((PRIORITY+1))
-done
-
-# Default action = Deny
-az webapp config access-restriction set \
-  --resource-group "$RG" \
-  --name "$WEB_BACK" \
-  --default-action Deny \
-  >/dev/null
+# ----- 6. Backend privado — DESABILITADO no B1 -----
+# AVISO: no App Service B1 (sem VNet Integration) o reverse proxy /api do
+# IIS/ARR não funciona, então o frontend embute VITE_API_URL e o BROWSER
+# chama o backend DIRETO. Travar o backend por allowlist dos outbound IPs
+# do frontend devolveria 403 ao usuário final e quebraria o app.
+# Segurança no B1 = CORS (FRONTEND_URL) + JWT. Ver DEPLOY.md (Cenário B).
+# Privacidade de rede real: Standard+ com Private Endpoint + VNet Integration.
+echo ">> 6/6  Backend privado: PULADO (incompatível com B1 + VITE_API_URL)."
+echo "        Segurança do backend = CORS (FRONTEND_URL) + JWT. Ver DEPLOY.md."
 
 # ----- Outputs -----
 echo
@@ -170,6 +154,6 @@ echo "============================================================"
 echo
 echo "Próximos passos:"
 echo "  1. Importar FIFA2026Tickets.bacpac no Azure SQL"
-echo "  2. cd Lovable/World\\ Cup\\ Tickets\\ Hub && BACKEND_URL=https://${WEB_BACK}.azurewebsites.net npm run build"
+echo "  2. cd Lovable/World\\ Cup\\ Tickets\\ Hub && VITE_API_URL=https://${WEB_BACK}.azurewebsites.net/api BACKEND_URL=https://${WEB_BACK}.azurewebsites.net npm run build"
 echo "  3. Deploy do dist/ no $WEB_FRONT (via GitHub Actions ou az webapp deploy)"
 echo "  4. Deploy do fifa2026-api/ no $WEB_BACK (via GitHub Actions)"

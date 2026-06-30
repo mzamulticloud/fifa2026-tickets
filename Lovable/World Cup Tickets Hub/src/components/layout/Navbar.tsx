@@ -4,6 +4,7 @@ import { ShoppingCart, User, Menu, X, Trophy, Ticket, MapPin, Calendar, Users, B
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { LoginV2Button } from '@/components/LoginV2Button';
 import { cn } from '@/lib/utils';
 
 const navLinks = [
@@ -62,6 +63,9 @@ export const Navbar: React.FC = () => {
 
           {/* Actions */}
           <div className="flex items-center gap-2">
+            {/* Story 2.3 / F3 — Login v2 (Entra OIDC), paralelo ao login v1 abaixo. */}
+            <LoginV2Button />
+
             {/* Cart */}
             <Link to="/cart">
               <Button

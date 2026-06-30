@@ -1,11 +1,14 @@
 const express = require('express');
 const { query } = require('../config/database');
-const { authMiddleware, adminMiddleware } = require('../middleware/auth');
+const { gatewayTrustMiddleware } = require('../middleware/gatewayTrust');
 
 const router = express.Router();
 
-// Todas as rotas requerem autenticação de admin
-router.use(authMiddleware, adminMiddleware);
+// Todas as rotas requerem privilégios de admin. O middleware ADITIVO confia no gateway
+// (workforce via X-Gateway-Key, sem login v1) OU cai no fluxo legado v1
+// (authMiddleware → adminMiddleware) — ver middleware/gatewayTrust.js.
+// MVP: /stats, /sales, /sales/:id são as únicas rotas deste router.
+router.use(gatewayTrustMiddleware);
 
 // GET /api/admin/sales - Lista paginada de vendas
 // Query params: page, pageSize, status, search, start_date, end_date

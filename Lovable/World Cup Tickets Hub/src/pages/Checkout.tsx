@@ -9,6 +9,40 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { TeamFlag } from '@/components/TeamFlag';
 import { api } from '@/lib/api';
+import {
+  purchaseViaFunction,
+  getPurchaseStatus,
+  type PurchaseV2Category,
+  type PurchaseV2Item,
+} from '@/lib/apiFunctionV2';
+
+// Oitavas de Final — toggle do fluxo de compra assíncrona (Function v2).
+// A presença de VITE_FUNCTION_V2_URL é o próprio interruptor: definida → v2 async.
+const FUNCTION_V2_URL = import.meta.env.VITE_FUNCTION_V2_URL ?? '';
+const USE_FUNCTION_V2 = FUNCTION_V2_URL.length > 0;
+
+// Polling do status v2.
+const POLL_INTERVAL_MS = 2000;
+const POLL_MAX_ATTEMPTS = 10;
+
+/**
+ * Mapeia o setor do carrinho para a categoria do contrato v2 ('VIP'|'Cat1'|'Cat2').
+ * IMPORTANTE (defeito M-1): NÃO confiar no label (sector.name = 'VIP Premium' /
+ * 'Categoria 1' / 'Categoria 2'), que diverge do seed. Usamos o `sector.id` estável
+ * ('vip'|'cat1'|'cat2'), definido em data/stadiums.ts e lib/stadium-sectors.ts.
+ */
+function mapSectorToV2Category(sectorId: string): PurchaseV2Category | null {
+  switch (sectorId) {
+    case 'vip':
+      return 'VIP';
+    case 'cat1':
+      return 'Cat1';
+    case 'cat2':
+      return 'Cat2';
+    default:
+      return null;
+  }
+}
 
 const Checkout: React.FC = () => {
   const { items, totalPrice, clearCart } = useCart();
@@ -21,6 +55,10 @@ const Checkout: React.FC = () => {
   const [expiry, setExpiry] = useState('');
   const [cvv, setCvv] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Oitavas de Final — feedback do fluxo assíncrono v2 (UX a/b).
+  const [v2CorrelationId, setV2CorrelationId] = useState<string | null>(null);
+  const [v2StatusMessage, setV2StatusMessage] = useState<string | null>(null);
 
   const serviceFee = totalPrice * 0.1;
   const grandTotal = totalPrice + serviceFee;
@@ -53,8 +91,189 @@ const Checkout: React.FC = () => {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Oitavas de Final — fluxo de compra ASSÍNCRONO via Function v2 (CARRINHO INTEIRO).
+  // Mapeia TODAS as linhas do carrinho → 1 POST atômico { userId, items[] }; a Function
+  // explode em N mensagens (1 por linha). Exibe o orderId como protocolo (UX a) e faz
+  // polling de TODOS os correlationIds em paralelo até todos completed/algum failed/timeout (UX b).
+  // ---------------------------------------------------------------------------
+  const handleSubmitV2 = async () => {
+    setIsProcessing(true);
+    setV2CorrelationId(null);
+    setV2StatusMessage(null);
+
+    const userId = Number(user?.id);
+    if (!Number.isFinite(userId)) {
+      toast({
+        title: 'Não foi possível montar o pedido',
+        description:
+          'Dados do usuário incompletos. Recarregue e tente novamente.',
+        variant: 'destructive',
+      });
+      setIsProcessing(false);
+      return;
+    }
+
+    // Mapeia TODO o carrinho → items, validando categoria e matchId POR linha.
+    const v2Items: PurchaseV2Item[] = [];
+    for (const cartItem of items) {
+      const category = mapSectorToV2Category(cartItem.sector.id);
+      const matchId = Number(cartItem.match.id);
+      const quantity = Number(cartItem.quantity);
+
+      if (
+        !category ||
+        !Number.isFinite(matchId) ||
+        !Number.isFinite(quantity)
+      ) {
+        toast({
+          title: 'Não foi possível montar o pedido',
+          description:
+            'Dados do ingresso incompletos (categoria, jogo ou quantidade). Recarregue e tente novamente.',
+          variant: 'destructive',
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      v2Items.push({ matchId, category, quantity });
+    }
+
+    // 1) POST atômico do carrinho → 202 { orderId, correlationIds[] }
+    const accepted = await purchaseViaFunction({ userId, items: v2Items });
+
+    if (accepted.error || !accepted.data) {
+      toast({
+        title: 'Erro ao enviar o pedido',
+        description: accepted.error ?? 'Resposta inesperada da Function v2.',
+        variant: 'destructive',
+      });
+      setIsProcessing(false);
+      return;
+    }
+
+    const { orderId, correlationIds } = accepted.data;
+    if (!Array.isArray(correlationIds) || correlationIds.length === 0) {
+      toast({
+        title: 'Resposta inesperada',
+        description: 'A Function v2 não retornou os protocolos do pedido.',
+        variant: 'destructive',
+      });
+      setIsProcessing(false);
+      return;
+    }
+
+    // Protocolo principal = orderId (pedido inteiro).
+    setV2CorrelationId(orderId);
+    setV2StatusMessage('Pedido recebido — em processamento.');
+    toast({
+      title: 'Pedido recebido',
+      description: `Em processamento. Protocolo: ${orderId}`,
+    });
+
+    // 2) Polling: a cada tick consulta TODOS os correlationIds em paralelo.
+    //    Confirma quando TODOS = completed; falha se algum = failed; timeout esgota tentativas.
+    for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+
+      const results = await Promise.all(
+        correlationIds.map((id) => getPurchaseStatus(id))
+      );
+
+      // Erro transitório em qualquer consulta: continua tentando até esgotar.
+      if (results.some((r) => r.error || !r.data)) {
+        setV2StatusMessage('Consultando status do pedido...');
+        continue;
+      }
+
+      const statuses = results.map((r) => (r.data?.status ?? '').toLowerCase());
+
+      if (statuses.some((s) => s === 'failed')) {
+        setV2StatusMessage(null);
+        toast({
+          title: 'Compra não concluída',
+          description: `O processamento de um ou mais ingressos falhou (protocolo ${orderId}).`,
+          variant: 'destructive',
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      if (statuses.every((s) => s === 'completed')) {
+        const purchasedTickets = items.map((cartItem, index) => ({
+          // Confirmação montada a partir do CARRINHO LOCAL + orderId.
+          // O 202 não traz tickets[]/total_amount; NÃO fabricamos ticket fake.
+          ticketId: `${orderId}-${index + 1}`,
+          matchId: cartItem.match.id,
+          homeTeam: cartItem.homeTeam.name,
+          awayTeam: cartItem.awayTeam.name,
+          homeFlag: cartItem.homeTeam.flag,
+          awayFlag: cartItem.awayTeam.flag,
+          stadium: cartItem.stadium.name,
+          city: cartItem.stadium.city,
+          date: cartItem.match.date,
+          time: cartItem.match.time,
+          sector: cartItem.sector.name,
+          quantity: cartItem.quantity,
+          buyerName: user?.name || '',
+          buyerEmail: user?.email || '',
+          purchaseDate: new Date(),
+        }));
+
+        addOrder({
+          items: items.map((cartItem) => ({
+            matchId: cartItem.match.id,
+            sectorId: cartItem.sector.id,
+            quantity: cartItem.quantity,
+            unitPrice: cartItem.unitPrice,
+            totalPrice: cartItem.totalPrice,
+          })),
+          totalPrice: grandTotal,
+          status: 'confirmed',
+          paymentMethod: 'credit_card',
+        });
+
+        clearCart();
+        toast({
+          title: 'Compra confirmada!',
+          description: `Protocolo ${orderId}.`,
+        });
+        navigate('/payment-confirmation', {
+          state: {
+            tickets: purchasedTickets,
+            totalAmount: grandTotal,
+            correlationId: orderId,
+          },
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      // Alguma linha ainda em andamento (queued/processing/...): segue o polling.
+      setV2StatusMessage('Processando seu pedido...');
+    }
+
+    // Timeout: não confirmou dentro das tentativas.
+    toast({
+      title: 'Processamento em andamento',
+      description: `Ainda não foi possível confirmar (protocolo ${orderId}). Verifique "Meus Ingressos" em instantes.`,
+      variant: 'destructive',
+    });
+    setV2StatusMessage(
+      'O pedido ainda está em processamento. Confira "Meus Ingressos" em instantes.'
+    );
+    setIsProcessing(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Oitavas de Final — toggle: com VITE_FUNCTION_V2_URL definida, usa v2 async.
+    if (USE_FUNCTION_V2) {
+      await handleSubmitV2();
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
@@ -234,6 +453,18 @@ const Checkout: React.FC = () => {
                   <span className="text-sm">Pagamento seguro com criptografia SSL</span>
                 </div>
               </div>
+
+              {/* Oitavas de Final — feedback do fluxo assíncrono v2 (protocolo + status). */}
+              {USE_FUNCTION_V2 && v2StatusMessage && (
+                <div className="p-4 rounded-xl bg-primary/10 text-foreground border border-primary/30">
+                  <p className="text-sm font-medium">{v2StatusMessage}</p>
+                  {v2CorrelationId && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Protocolo: <span className="font-mono">{v2CorrelationId}</span>
+                    </p>
+                  )}
+                </div>
+              )}
 
               <Button
                 type="submit"

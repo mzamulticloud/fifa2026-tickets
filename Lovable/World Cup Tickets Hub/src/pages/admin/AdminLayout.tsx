@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, Navigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import {
   LayoutDashboard,
   Calendar,
@@ -12,6 +13,9 @@ import {
   ChevronLeft,
   Menu,
   UserRound,
+  ShieldCheck,
+  ShieldAlert,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -25,16 +29,115 @@ const menuItems = [
   { href: '/admin/sales', label: 'Vendas', icon: Ticket },
 ];
 
+// Casca centralizada usada pelas telas de gate (login admin / acesso negado / loader).
+const GateShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 shadow-lg text-center">
+      {children}
+    </div>
+  </div>
+);
+
+// Quartas (F3) — tela de login ADMIN via Entra workforce (App Role "Admin").
+const AdminEntraLogin: React.FC<{
+  onLogin: () => void;
+  working: boolean;
+  error: string | null;
+}> = ({ onLogin, working, error }) => (
+  <GateShell>
+    <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-gradient-gold flex items-center justify-center">
+      <ShieldCheck className="w-6 h-6 text-primary-foreground" />
+    </div>
+    <h1 className="font-display text-2xl text-gradient mb-2">Área Administrativa</h1>
+    <p className="text-sm text-muted-foreground mb-6">
+      O acesso administrativo exige login corporativo (Microsoft Entra ID) com a função
+      <span className="font-medium"> Admin</span>.
+    </p>
+    <Button className="w-full gap-2" onClick={onLogin} disabled={working}>
+      {working ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+      Entrar como Admin (Entra)
+    </Button>
+    {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+    <Link to="/" className="mt-6 inline-block text-xs text-muted-foreground hover:text-foreground">
+      Voltar ao site
+    </Link>
+  </GateShell>
+);
+
+// Quartas (F3) — conta workforce autenticada, porém SEM a App Role "Admin" → bloqueio.
+const AdminAccessDenied: React.FC<{
+  name?: string;
+  onLogout: () => void;
+}> = ({ name, onLogout }) => (
+  <GateShell>
+    <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
+      <ShieldAlert className="w-6 h-6 text-destructive" />
+    </div>
+    <h1 className="font-display text-2xl mb-2">Acesso negado</h1>
+    <p className="text-sm text-muted-foreground mb-6">
+      {name ? <><span className="font-medium">{name}</span>, sua </> : 'Sua '}
+      conta está autenticada, mas não possui a função <span className="font-medium">Admin</span>
+      {' '}necessária para a área administrativa.
+    </p>
+    <Button variant="outline" className="w-full gap-2" onClick={onLogout}>
+      <LogOut className="w-4 h-4" />
+      Sair e usar outra conta
+    </Button>
+    <Link to="/" className="mt-6 inline-block text-xs text-muted-foreground hover:text-foreground">
+      Voltar ao site
+    </Link>
+  </GateShell>
+);
+
 const AdminLayout: React.FC = () => {
   const { isAuthenticated, user, logout } = useAuth();
+  const admin = useAdminAuth();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
-  // Por enquanto, permitir acesso a qualquer usuário autenticado
-  // Em produção, verificar se user.role === 'admin'
-  if (!isAuthenticated) {
+  // === Quartas (F3) — gate da área /admin =====================================
+  // Quando o login workforce está CONFIGURADO (VITE_ADMIN_*/VITE_ENTRA_* presentes),
+  // a área administrativa passa a exigir conta Entra workforce COM a App Role "Admin"
+  // (validada de ponta a ponta pela policy AdminOnly do gateway dual-issuer). Sem a
+  // role → bloqueio (não entra). Quando NÃO configurado (ex.: lab Oitavas), mantém o
+  // comportamento legado (gate v1/bcrypt) — mudança ADITIVA, retrocompatível.
+  if (admin.isConfigured) {
+    if (!admin.isReady) {
+      return (
+        <GateShell>
+          <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary" />
+        </GateShell>
+      );
+    }
+    if (!admin.account) {
+      return (
+        <AdminEntraLogin
+          onLogin={admin.login}
+          working={admin.isWorkingLogin}
+          error={admin.error}
+        />
+      );
+    }
+    if (!admin.isAdmin) {
+      return (
+        <AdminAccessDenied
+          name={admin.account.name ?? admin.account.username}
+          onLogout={admin.logout}
+        />
+      );
+    }
+    // Autenticado + App Role "Admin" → segue para o shell administrativo.
+  } else if (!isAuthenticated) {
+    // Legado (sem workforce): mantém o gate v1/bcrypt.
     return <Navigate to="/login?redirect=/admin" replace />;
   }
+
+  // Identidade exibida no rodapé / ação de logout conforme o mundo ativo.
+  const displayName = admin.isConfigured
+    ? (admin.account?.name ?? admin.account?.username)
+    : user?.name;
+  const displayEmail = admin.isConfigured ? admin.account?.username : user?.email;
+  const handleLogout = admin.isConfigured ? admin.logout : logout;
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -95,8 +198,8 @@ const AdminLayout: React.FC = () => {
         <div className="p-4 border-t border-border">
           {!collapsed && (
             <div className="mb-3 px-2">
-              <p className="text-sm font-medium truncate">{user?.name}</p>
-              <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+              <p className="text-sm font-medium truncate">{displayName}</p>
+              <p className="text-xs text-muted-foreground truncate">{displayEmail}</p>
             </div>
           )}
           <div className="flex gap-2">
@@ -113,7 +216,7 @@ const AdminLayout: React.FC = () => {
               </Button>
             </Link>
             {!collapsed && (
-              <Button variant="ghost" size="sm" onClick={logout} title="Sair">
+              <Button variant="ghost" size="sm" onClick={handleLogout} title="Sair">
                 <LogOut className="w-4 h-4" />
               </Button>
             )}

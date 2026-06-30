@@ -126,28 +126,15 @@ az webapp config set `
 
 az webapp update -g $RG -n $WEB_FRONT --https-only true -o table
 
-# ----- 6. Access Restriction no backend -----
-Write-Host ">> 6/6  Access Restriction no backend"
-$FRONT_IPS_RAW = az webapp show -g $RG -n $WEB_FRONT --query 'possibleOutboundIpAddresses' -o tsv
-$FRONT_IPS = $FRONT_IPS_RAW.Split(',') | Sort-Object -Unique
-
-$PRIORITY = 100
-foreach ($IP in $FRONT_IPS) {
-  Write-Host "   allow $IP/32 (priority $PRIORITY)"
-  az webapp config access-restriction add `
-    --resource-group $RG `
-    --name $WEB_BACK `
-    --rule-name "frontend-$PRIORITY" `
-    --action Allow `
-    --ip-address "$IP/32" `
-    --priority $PRIORITY | Out-Null
-  $PRIORITY++
-}
-
-az webapp config access-restriction set `
-  --resource-group $RG `
-  --name $WEB_BACK `
-  --default-action Deny | Out-Null
+# ----- 6. Backend privado — DESABILITADO no B1 -----
+# AVISO: no App Service B1 (sem VNet Integration) o reverse proxy /api do
+# IIS/ARR nao funciona, entao o frontend embute VITE_API_URL e o BROWSER
+# chama o backend DIRETO. Travar o backend por allowlist dos outbound IPs
+# do frontend devolveria 403 ao usuario final e quebraria o app.
+# A seguranca no B1 e CORS (FRONTEND_URL) + JWT. Ver DEPLOY.md (Cenario B).
+# Para privacidade de rede real: Standard+ com Private Endpoint + VNet Integration.
+Write-Host '>> 6/6  Backend privado: PULADO (incompativel com B1 + VITE_API_URL).'
+Write-Host '        Seguranca do backend = CORS (FRONTEND_URL) + JWT. Ver DEPLOY.md.'
 
 # ----- Outputs -----
 Write-Host ''

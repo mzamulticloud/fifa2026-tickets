@@ -1,0 +1,38 @@
+schema: 1
+story: '2.8'
+gate: PASS
+status_reason: 'As 4 tools MCP read-only (Fase A) estão completas, com SQL 100% parametrizado, ReadOnly=true em todas as 7 tools e regra de ouro (zero escrita) preservada; 62/62 testes McpServer + Gateway 11/11 + Functions 50/50 verdes, build limpo. AC-9/AC-10 são pendências de validação runtime documentadas (não executáveis localmente).'
+reviewer: 'Quinn'
+updated: '2026-06-09T00:00:00Z'
+top_issues:
+  - id: 'REQ-001'
+    severity: low
+    finding: 'AC-9 (smoke tools/call via gateway YARP → HTTP 200 com dados reais) e AC-10 (chatbot React + Gemini 2.5 Flash respondendo as 4 perguntas canônicas) não são executáveis no ambiente local de dev — requerem deploy do container (Task 6) e ambiente ao vivo.'
+    suggested_action: 'Executar smoke de runtime (Task 6.2 + 7.2) durante o deploy via @devops; mesmo padrão de pendência runtime aceito nos gates de S2.4–S2.6. Não-bloqueante para o gate de código.'
+waiver: { active: false }
+
+# --- Quality checks (7) ---
+quality_checks:
+  code_review: PASS        # padrão aditivo limpo (espelha S2.5); MapFaseToStage delega a MapRodadaToStage (zero duplicação)
+  unit_tests: PASS         # 62/62 verificado empiricamente (41→62); edge cases cobertos (classificação vazia, not-found)
+  acceptance_criteria: PASS # AC-1..8/11/12 verificadas; AC-5 provada por teste; AC-9/AC-10 pendência runtime documentada (REQ-001)
+  no_regressions: PASS     # Gateway 11/11, Functions 50/50; invariante MapRodadaToStage "grupo A"→null preservado
+  performance: PASS        # agregação single-query (sem N+1), TOP(1) nos lookups, joins indexados
+  security: PASS           # Dapper 100% parametrizado (zero concatenação), ReadOnly=true x7, zero INSERT/UPDATE/DELETE, X-Entra-OID só em log mascarado
+  documentation: PASS      # README §3.5 aditivo; File List/checkboxes/Dev Agent Record coerentes
+
+# --- Evidence (verified by Quinn, not trusted from report) ---
+evidence:
+  commit_reviewed: '570d2f7'
+  file_list_match: 'OK — 12 arquivos no commit batem com o File List da story'
+  build: '0 Aviso(s), 0 Erro(s) (dotnet build McpServer)'
+  tests_real:
+    mcpserver: '62/62 passed'
+    gateway: '11/11 passed'
+    functions: '50/50 passed'
+  golden_rule: 'grep INSERT|UPDATE|DELETE|MERGE|DROP|EXEC no McpServer = 0 hits (único match é comentário sobre HTTP DELETE em Program.cs)'
+  readonly_audit: '7/7 tools com ReadOnly = true; zero ReadOnly = false'
+  sql_injection: 'todos os inputs via objeto de parâmetros anônimo do Dapper; LIKE wrapping aplicado ao valor do parâmetro, não à string SQL; Fase de Grupos via @Stage/StageFaseDeGrupos'
+  sdk_version: 'ModelContextProtocol* pinado em 1.4.0 (csproj não modificado pelo commit) — ADE-002 Inv 1 preservado'
+  gemini_model: "gemini.ts MODEL (L24) = 'gemini-2.5-flash'; comentários de cabeçalho citam modelo antigo (não funcional)"
+  coderabbit: 'SKIPPED — WSL/CodeRabbit indisponível no ambiente (graceful degradation, skip_if_not_installed=true). Foco principal (SQL injection) coberto por análise manual linha-a-linha = 0 achados.'

@@ -1,0 +1,21 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+
+    "//": "TEMPLATE — copie para um local.settings.json local e preencha. NÃO commitar a versão com secrets reais (gitignored).",
+
+    "//ServiceBusConnection": "Connection string do namespace Service Bus. IMPORTANTE: SEM EntityPath=... (a queue vem do atributo do binding). Formato: Endpoint=sb://<ns>.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=<key>",
+    "ServiceBusConnection": "",
+
+    "//SqlConnectionString": "Connection string do SQL Server (mesma DB do v1). Ex: Server=tcp:<server>.database.windows.net,1433;Database=FIFA2026Tickets;User ID=<user>;Password=<pwd>;Encrypt=True;TrustServerCertificate=False;",
+    "SqlConnectionString": "",
+
+    "//APPLICATIONINSIGHTS_CONNECTION_STRING": "Connection string do Application Insights (observabilidade / W3C Trace Context).",
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "",
+
+    "//N8N_WEBHOOK_URL": "Story 2.4 (F4) — URL do webhook do n8n para notificação pós-compra. Ex.: https://<container-app-fqdn>/webhook/purchase. Vazio = disparo desativado (no-op silencioso). NUNCA hardcodar no código (AC-6).",
+    "N8N_WEBHOOK_URL": ""
+  }
+}

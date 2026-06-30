@@ -1,11 +1,15 @@
 # FIFA 2026 Tickets — Topologia & Deploy
 
-Aplicação dividida em **3 camadas**, com a mesma codebase rodando tanto em **VMs** quanto em **Azure Web App for Windows**. Em ambos os cenários:
+Aplicação dividida em **3 camadas**, com a mesma codebase rodando tanto em **VMs** quanto em **Azure Web App for Windows**. O modelo de rede **difere entre os dois cenários** — atenção:
 
-- O **frontend é o único componente público** (porta 80/443).
-- O **backend é privado** — só responde para o frontend.
-- O **banco é privado** — só responde para o backend.
-- A comunicação **frontend → backend** acontece via **reverse proxy** do IIS (regra em `web.config`), então o cliente do browser chama sempre `/api/*` na origem do frontend. CORS não é exercitado em produção.
+| | Cenário A (VMs) | Cenário B (Azure Web App B1) |
+|---|---|---|
+| Frontend → Backend | **reverse proxy IIS/ARR** (`web.config` rewrite `/api/*` → IP privado do backend) | **chamada direta do browser** (`VITE_API_URL` absoluto embutido no bundle) |
+| Backend acessível por | só pela VM-Front (NSG/IP) — **privado** | **público** na internet (ver nota abaixo) |
+| CORS | não exercitado (proxy same-origin) | **exercitado** — backend libera só `FRONTEND_URL` |
+| Banco | privado (NSG) | Azure SQL com firewall `AllowAllAzureServices` |
+
+> ⚠️ **Por que o backend é público no Cenário B:** no App Service **B1**, o reverse proxy outbound do IIS/ARR **não funciona** — uma regra `web.config` que reescreve `/api/*` para `https://<backend>.azurewebsites.net` retorna **404** (testado). Por isso o frontend embute `VITE_API_URL` (URL absoluta do backend) no bundle JS e o **browser chama o backend diretamente**. Como as chamadas partem do IP do usuário final, **não é possível** travar o backend por allowlist de IPs do frontend (isso devolveria 403 ao usuário). A segurança fica por conta de **CORS** (`FRONTEND_URL`) + **JWT**. Para privacidade real de rede, use **Private Endpoint + VNet Integration** (exige SKU Standard+; não cabe no B1 simples).
 
 ---
 
@@ -78,26 +82,25 @@ Reaproveite os passos do `Lovable/World Cup Tickets Hub/DEPLOY_IIS_SIMPLIFICADO.
 
 ```
                 ┌──────────────────────────────────┐
-   Internet ──▶ │  fifa2026-web (Web App Windows)  │
-                │  conteúdo: dist/                 │
-                │  web.config: rewrite /api/* ─────┼───┐
-                └──────────────────────────────────┘   │
-                                                       ▼
-                                ┌──────────────────────────────────┐
-                                │  fifa2026-back (Web App Windows) │
-                                │  conteúdo: fifa2026-api/         │
-                                │  Access Restrictions: somente    │
-                                │    outbound IPs do front         │
-                                │  mssql ─────────────────────────┼───┐
-                                └──────────────────────────────────┘   │
-                                                                       ▼
+   Internet ──▶ │  app-...-web (Web App Windows)   │  conteúdo estático: dist/
+                │  serve index.html + bundle JS    │
+                └──────────────────────────────────┘
+                         │ (browser baixa o bundle; depois chama o backend DIRETO)
+   Browser ──────────────┴──────────────▶ ┌──────────────────────────────────┐
+   (VITE_API_URL absoluto, CORS)          │  app-...-api (Web App Windows)   │  público
+                                          │  conteúdo: fifa2026-api/         │  CORS: só FRONTEND_URL
+                                          │  iisnode → src/index.js          │  JWT nas rotas protegidas
+                                          │  mssql ─────────────────────────┼───┐
+                                          └──────────────────────────────────┘   │
+                                                                                 ▼
                                                           ┌──────────────────────┐
                                                           │  Azure SQL Database  │
-                                                          │  Private Endpoint    │
-                                                          │  ou Firewall Rule    │
-                                                          │  com IPs do back     │
+                                                          │  firewall:           │
+                                                          │  AllowAllAzureServices│
                                                           └──────────────────────┘
 ```
+
+> Diferente do Cenário A: **não há proxy `/api` no frontend** (ARR não funciona no B1). O browser chama o backend pela URL absoluta (`VITE_API_URL`). Logo o backend é **público** e protegido por CORS + JWT.
 
 ### Recursos
 - **App Service Plan**: Windows, B1 ou superior (S1 para produção real).
@@ -105,18 +108,19 @@ Reaproveite os passos do `Lovable/World Cup Tickets Hub/DEPLOY_IIS_SIMPLIFICADO.
 - **Web App `fifa2026-back`**: Node 18+ runtime, deploy de `fifa2026-api/`.
 - **Azure SQL Database**: importar o `.bacpac`. Opcional: Private Endpoint para isolamento total.
 
-### Tornando o backend privado (sem VNet integration)
-A forma mais simples no plano básico:
+### Segurança do backend (B1)
 
-1. Configure **Access Restrictions** em `fifa2026-back`:
-   - Permitir: outbound IPs de `fifa2026-web` (lista em Networking → Outbound IP addresses).
-   - Negar: o resto (regra default Deny).
-2. Habilite **HTTPS Only** em ambos.
+> ⚠️ **NÃO** aplique Access Restriction com allowlist dos outbound IPs do frontend no Cenário B. Como o **browser** chama o backend diretamente (`VITE_API_URL`), as requisições partem do IP do **usuário final** — uma allowlist baseada nos IPs do frontend devolveria **403** ao usuário e quebraria o app. (O `infra/provision.*` e versões antigas deste doc faziam isso; é incompatível com o B1.)
 
-Com VNet Integration (mais robusto):
-1. Crie uma VNet com 2 subnets dedicadas a App Service VNet integration.
-2. Habilite **VNet Integration** nos 2 Web Apps.
-3. Em `fifa2026-back`, ative **Private Endpoint** ou Access Restriction baseada em VNet.
+No B1 a proteção do backend é em **camada de aplicação**, não de rede:
+1. **HTTPS Only** habilitado em ambos os Web Apps (já no Bicep).
+2. **CORS** no backend liberando apenas `FRONTEND_URL` (App Setting).
+3. **JWT** nas rotas protegidas.
+
+**Privacidade de rede real (opcional, exige Standard+):** com VNet Integration:
+1. Crie uma VNet com subnets dedicadas a App Service VNet Integration.
+2. Habilite **VNet Integration** nos 2 Web Apps e mantenha o frontend como proxy server-side (que no Standard+ funciona).
+3. No backend, ative **Private Endpoint** / Access Restriction baseada em VNet.
 4. SQL Database recebe Private Endpoint na mesma VNet.
 
 ### App Settings (substitui o .env)
@@ -136,14 +140,20 @@ Com VNet Integration (mais robusto):
 
 > `PORT` e `HOST` são gerenciados pela plataforma (iisnode injeta named pipe).
 
-**`fifa2026-web`** não precisa de App Settings — o `BACKEND_URL` já foi gravado no `web.config` no momento do build.
+**`app-...-web` (frontend)** não precisa de App Settings — a URL do backend é embutida **em build time** no bundle JS via `VITE_API_URL`. No B1, é isso que o browser usa (chamada direta); o `BACKEND_URL`/web.config só importa no Cenário A (VMs).
 
 ### Build do frontend para Web App
 ```bash
 cd "Lovable/World Cup Tickets Hub"
-BACKEND_URL=https://fifa2026-back.azurewebsites.net npm run build
+# VITE_API_URL = URL ABSOLUTA do backend + /api → embutida no bundle (browser chama direto)
+# BACKEND_URL  = mantido por compatibilidade (web.config; só efetivo em VM/Standard+)
+VITE_API_URL=https://app-fifa2026-api-dev-brs-001.azurewebsites.net/api \
+BACKEND_URL=https://app-fifa2026-api-dev-brs-001.azurewebsites.net \
+  npm run build
 # Subir dist/ via ZipDeploy, GitHub Actions ou Azure CLI
 ```
+
+> O workflow `deploy-frontend.yml` já faz isso automaticamente: deriva `VITE_API_URL` de `BACKEND_URL` (input do workflow ou GitHub Variable) e valida que a URL foi embutida no bundle.
 
 ---
 
@@ -185,7 +195,8 @@ Fonte da verdade: **`FIFA2026-APP/FIFA2026Tickets.bacpac`**.
 |---|---|---|---|
 | Frontend hospedado em | IIS na VM-Front | App Service `fifa2026-web` | Vite (`npm run dev`) :8080 |
 | Backend hospedado em | iisnode na VM-Back (privada) | App Service `fifa2026-back` (Access Restriction) | Node `npm run dev` :3001 |
-| Frontend → Backend | web.config rewrite → `http://<IP-priv>:3001` | web.config rewrite → `https://fifa2026-back.azurewebsites.net` | Vite proxy → `http://localhost:3001` |
+| Frontend → Backend | web.config rewrite → `http://<IP-priv>:3001` (proxy IIS) | **browser → backend direto** via `VITE_API_URL` (proxy ARR não funciona no B1) | Vite proxy → `http://localhost:3001` |
+| Backend exposto | privado (NSG, só VM-Front) | **público** (CORS `FRONTEND_URL` + JWT) | localhost |
 | BD | SQL Server na VM-DB | Azure SQL Database | SQL local ou Azure SQL |
 | Origem do schema/dados | bacpac | bacpac | bacpac ou schema.sql + seed |
 | Build do frontend | `BACKEND_URL=http://<IP>:3001 npm run build` | `BACKEND_URL=https://...azurewebsites.net npm run build` | não há build (Vite dev) |

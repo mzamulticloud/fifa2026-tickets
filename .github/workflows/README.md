@@ -59,28 +59,11 @@ az webapp config appsettings set \
 
 > O frontend **não precisa** de App Settings — `BACKEND_URL` é gravado no `web.config` em build time.
 
-### 3. Tornar o backend privado
+### 3. Segurança do backend (B1 = público)
 
-A forma mais simples para o evento (sem VNet integration):
+> ⚠️ No App Service **B1** o backend fica **público** e protegido por **CORS** (`FRONTEND_URL`) + **JWT** — **não** o trave por allowlist de IPs do frontend. O proxy `/api` do IIS/ARR não funciona no B1, então o browser chama o backend direto (`VITE_API_URL`); travar por IP do frontend devolveria 403 ao usuário final. Veja [`../../DEPLOY.md`](../../DEPLOY.md) → Cenário B e [`../../infra/README.md`](../../infra/README.md).
 
-```bash
-# Pegar IPs outbound do frontend
-FRONT_IPS=$(az webapp show -g fifa2026-rg -n fifa2026-web \
-  --query "possibleOutboundIpAddresses" -o tsv | tr ',' '\n')
-
-# Adicionar uma regra de allow para cada IP no backend
-PRIORITY=100
-for IP in $FRONT_IPS; do
-  az webapp config access-restriction add \
-    -g fifa2026-rg -n fifa2026-back \
-    --rule-name "frontend-$PRIORITY" \
-    --action Allow --ip-address "$IP/32" \
-    --priority $PRIORITY
-  PRIORITY=$((PRIORITY+1))
-done
-```
-
-A regra default `Deny all` cobre o resto. Não esquecer de manter uma regra de allow para o seu IP de gerência se for usar Kudu/SCM.
+Para privacidade de rede real, migre para Standard+ com Private Endpoint + VNet Integration.
 
 ---
 

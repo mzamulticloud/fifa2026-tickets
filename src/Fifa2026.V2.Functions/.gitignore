@@ -1,0 +1,18 @@
+# Azure Functions local settings — NEVER commit a version with real secrets.
+# The committed local.settings.json is a SECRET-FREE template (empty values).
+# Developers copy it locally and fill in connection strings; that copy must stay
+# out of git. Since the template itself is tracked, we ignore the typical
+# secret-bearing variants instead of the file outright.
+local.settings.*.json
+*.local.settings.json
+local.settings.local.json
+
+# .NET build output
+bin/
+obj/
+publish/
+*.user
+
+# Azure Functions
+.azurefunctions/
+azure-functions-core-tools/

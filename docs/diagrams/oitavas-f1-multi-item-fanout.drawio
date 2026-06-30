@@ -1,0 +1,109 @@
+<mxfile host="app.diagrams.net" type="device" agent="aiox-master">
+  <diagram name="Oitavas F1 - Fan-out Multi-item" id="oitavas-f1">
+    <mxGraphModel dx="1200" dy="760" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="760" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Titulo -->
+        <mxCell id="title" value="Oitavas de Final (F1) — Compra v2 assíncrona com FAN-OUT multi-item" style="text;html=1;fontSize=16;fontStyle=1;align=left;verticalAlign=middle;fontColor=#0072C6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="22" width="980" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="1 POST do carrinho ({userId, items[]}) → N mensagens no Service Bus (fan-out) → N consumidores → N gravações no SQL · rastreio ponta-a-ponta por orderId/correlationId" style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="40" y="48" width="1100" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Nodes -->
+        <mxCell id="browser" value="Cliente (Browser SPA)&#10;App Service · custom domain" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;image=img/lib/azure2/general/Browser.svg;" vertex="1" parent="1">
+          <mxGeometry x="80" y="190" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="status" value="PurchaseStatusFunction&#10;(consulta · polling)" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;image=img/lib/azure2/compute/Function_Apps.svg;" vertex="1" parent="1">
+          <mxGeometry x="80" y="470" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="entry" value="PurchaseEntryFunction&#10;(produz · fan-out)" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;image=img/lib/azure2/compute/Function_Apps.svg;" vertex="1" parent="1">
+          <mxGeometry x="380" y="190" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="sbus" value="Azure Service Bus&#10;fila tickets-purchase" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;image=img/lib/azure2/integration/Service_Bus.svg;" vertex="1" parent="1">
+          <mxGeometry x="680" y="190" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="dlq" value="$DeadLetterQueue&#10;(poison msg após 10x)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDE7E9;strokeColor=#D13438;fontSize=10;fontColor=#A4262C;" vertex="1" parent="1">
+          <mxGeometry x="650" y="360" width="120" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="consumer1" value="PurchaseConsumerFunction #1&#10;(processa · idempotente)" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;image=img/lib/azure2/compute/Function_Apps.svg;" vertex="1" parent="1">
+          <mxGeometry x="980" y="100" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="consumerN" value="PurchaseConsumerFunction #N&#10;(1 por linha do carrinho)" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;image=img/lib/azure2/compute/Function_Apps.svg;" vertex="1" parent="1">
+          <mxGeometry x="980" y="300" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="sql" value="Azure SQL · purchases&#10;INSERT idempotente&#10;UNIQUE(correlation_id)" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;image=img/lib/azure2/databases/SQL_Database.svg;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="190" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="appi" value="Application Insights&#10;1 orderId → N correlationIds" style="sketch=0;html=1;aspect=fixed;image;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;image=img/lib/azure2/devops/Application_Insights.svg;" vertex="1" parent="1">
+          <mxGeometry x="700" y="500" width="50" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- 1) POST  -->
+        <mxCell id="e1" value="① POST /api/v2/purchase&#10;{ userId, items[] }" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;endArrow=block;flowAnimation=1;strokeWidth=2;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="browser" target="entry">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- 202 retorno -->
+        <mxCell id="e2ret" value="202 { orderId, correlationIds[] }" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;dashed=1;endArrow=open;strokeColor=#107C10;fontColor=#107C10;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.7;exitDx=0;exitDy=0;entryX=1;entryY=0.7;entryDx=0;entryDy=0;" edge="1" parent="1" source="entry" target="browser">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 2) FAN-OUT -->
+        <mxCell id="e3" value="② publica N mensagens&#10;(1 por linha — FAN-OUT)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=11;fontStyle=1;endArrow=block;flowAnimation=1;strokeColor=#0072C6;fontColor=#0072C6;strokeWidth=3;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="entry" target="sbus">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 3) entrega -->
+        <mxCell id="e4" value="③ entrega" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;endArrow=block;flowAnimation=1;strokeWidth=2;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="sbus" target="consumer1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="③ entrega" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;endArrow=block;flowAnimation=1;strokeWidth=2;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="sbus" target="consumerN">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="falha permanente → DLQ" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;dashed=1;endArrow=block;flowAnimation=1;strokeColor=#D13438;fontColor=#A4262C;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="sbus" target="dlq">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 4) INSERT -->
+        <mxCell id="e7" value="④ INSERT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;endArrow=block;flowAnimation=1;strokeWidth=2;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="consumer1" target="sql">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="④ INSERT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;endArrow=block;flowAnimation=1;strokeWidth=2;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="consumerN" target="sql">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 5) GET status -->
+        <mxCell id="e9" value="⑤ GET /api/v2/purchase/{correlationId}&#10;(polling)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;endArrow=block;flowAnimation=1;strokeWidth=2;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="browser" target="status">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="lê status" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;dashed=1;endArrow=open;flowAnimation=1;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="status" target="sql">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1285" y="600" /></Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 6) Telemetria -->
+        <mxCell id="t1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=open;flowAnimation=1;strokeColor=#68217A;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="entry" target="appi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=open;flowAnimation=1;strokeColor=#68217A;" edge="1" parent="1" source="consumer1" target="appi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=open;flowAnimation=1;strokeColor=#68217A;" edge="1" parent="1" source="consumerN" target="appi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t4" value="⑥ telemetria" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;dashed=1;endArrow=open;flowAnimation=1;strokeColor=#68217A;fontColor=#68217A;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="status" target="appi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Legenda -->
+        <mxCell id="legend" value="Fluxo (animado):  ① POST → ② FAN-OUT (1→N) → ③ entrega → ④ INSERT  ·  ⑤ polling de status  ·  ⑥ telemetria (App Insights)  ·  vermelho = DLQ (poison)" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="40" y="630" width="1200" height="20" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

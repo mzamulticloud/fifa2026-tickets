@@ -53,10 +53,20 @@ param nodeVersion string = '~18'
 // ----------------------------------------------------
 // Naming
 // ----------------------------------------------------
-var planName = '${namingPrefix}-plan'
-var webFrontName = '${namingPrefix}-web'
-var webBackName = '${namingPrefix}-back'
-var sqlServerName = '${namingPrefix}-sql'
+// Os nomes são params com defaults no padrão legado (`${namingPrefix}-x`)
+// para manter compatibilidade. Para Cloud Adoption Framework (CAF),
+// faça override via bicepparam (ver parameters/dev-caf.bicepparam).
+@description('Nome do App Service Plan. Default = padrão legado.')
+param planName string = '${namingPrefix}-plan'
+
+@description('Nome do Web App frontend. Default = padrão legado.')
+param webFrontName string = '${namingPrefix}-web'
+
+@description('Nome do Web App backend. Default = padrão legado.')
+param webBackName string = '${namingPrefix}-back'
+
+@description('Nome do SQL Server. Default = padrão legado.')
+param sqlServerName string = '${namingPrefix}-sql'
 
 // ----------------------------------------------------
 // Modules

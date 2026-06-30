@@ -36,7 +36,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import api from '@/lib/api';
+// Quartas / "admin 100% workforce": sales e stats vêm do gateway com token WORKFORCE
+// (apiAdmin), sem o token v1 do localStorage.
+import * as apiAdmin from '@/lib/apiAdminV2';
 import PaginationBar from '@/components/admin/PaginationBar';
 
 interface Sale {
@@ -104,7 +106,7 @@ const AdminSales: React.FC = () => {
     setError(null);
 
     const [salesRes, statsRes] = await Promise.all([
-      api.getSales({
+      apiAdmin.getSales({
         page: pagination.page,
         pageSize: pagination.pageSize,
         status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -113,7 +115,7 @@ const AdminSales: React.FC = () => {
       // Stats só carrega 1x na sessão; statsRef evita refetch sem virar dep do callback
       statsRef.current
         ? Promise.resolve({ data: { stats: statsRef.current }, error: undefined })
-        : api.getAdminStats(),
+        : apiAdmin.getAdminStats(),
     ]);
 
     const errMsg = salesRes.error || statsRes.error;

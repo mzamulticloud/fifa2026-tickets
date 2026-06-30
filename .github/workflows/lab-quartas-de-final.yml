@@ -1,0 +1,353 @@
+name: Lab Quartas de Final — Identidade dois-mundos (Gateway YARP + CIAM + admin workforce)
+
+# Workflow ÚNICO do lab "Quartas de Final" (Fase 2/3: Gateway YARP + identidade CIAM +
+# admin workforce + migração users v1 → CIAM). Espelha o padrão de lab-oitavas-de-final.yml.
+#
+# Disparo MANUAL apenas (Actions → "Lab Quartas de Final" → Run workflow).
+# O input `acao` controla O QUE roda:
+#   - tudo       → migrations → backend → gateway → frontend (NESTA ORDEM)
+#   - migrations → só as migrations do banco (phase-01, phase-03, phase-04-ciam-link)
+#   - backend    → só deploy do backend v1 (gatewayTrust.js + App Setting GATEWAY_SHARED_SECRET)
+#   - gateway    → só build/test/deploy do Gateway YARP (Container App)
+#   - frontend   → só build/deploy do frontend (com VITE_CIAM_*)
+#
+# DESIGN: um único job `lab` com STEPS sequenciais; cada bloco é guardado por
+# `if: ${{ inputs.acao == 'tudo' || inputs.acao == '<bloco>' }}`. Sem `needs` entre
+# blocos (evita a pegadinha do skip quebrar downstream) — mesma estrutura das Oitavas.
+#
+# IMPORTANTE (migração de cadastro): phase-04-ciam-link.sql cria APENAS a coluna
+# users.entra_oid (vazia) pré-aula. O PREENCHIMENTO (phase-04-ciam-link-migration-script.sql)
+# é o passo HANDS-ON da aula — NÃO é executado por este workflow (de propósito).
+#
+# Pré-requisitos no fork (ver runbook das Quartas / docs/workshops/phase-03-quartas/):
+#   Secrets:  AZURE_CREDENTIALS, SQL_CONNECTION_STRING, AZURE_FRONTEND_PUBLISH_PROFILE,
+#             AZURE_BACKEND_PUBLISH_PROFILE, GATEWAY_SHARED_SECRET
+#   Vars (migrations): SQL_SERVER, RESOURCE_GROUP
+#   Vars (backend):    BACKEND_APP_NAME, RESOURCE_GROUP
+#   Vars (gateway):    ACR_LOGIN_SERVER, PHASE04_CONTAINERAPP_NAME, PHASE04_RESOURCE_GROUP
+#   Vars (frontend):   FRONTEND_APP_NAME, VITE_CIAM_AUTHORITY, VITE_CIAM_CLIENT_ID,
+#                      GATEWAY_V2_URL, BACKEND_URL, FUNCTION_V2_URL,
+#                      VITE_ADMIN_TENANT_ID, VITE_ADMIN_CLIENT_ID, VITE_ADMIN_SCOPE (opcional)
+
+on:
+  workflow_dispatch:
+    inputs:
+      acao:
+        description: 'O que executar'
+        type: choice
+        required: true
+        default: 'tudo'
+        options:
+          - tudo
+          - migrations
+          - backend
+          - gateway
+          - frontend
+      sql_server:
+        description: '(opcional) SQL server name override — sem .database.windows.net'
+        required: false
+      resource_group:
+        description: '(opcional) Resource group do SQL override'
+        required: false
+      containerapp_name:
+        description: '(opcional) Container App do gateway override'
+        required: false
+      frontend_app_name:
+        description: '(opcional) Azure Web App (frontend) name override'
+        required: false
+      backend_app_name:
+        description: '(opcional) Azure Web App (backend) name override'
+        required: false
+
+env:
+  # --- migrations ---
+  DEFAULT_SQL_SERVER: 'sql-dev-tk-cin-001'
+  DEFAULT_RESOURCE_GROUP: 'rg-hml-tik-cin-001'
+  # --- gateway ---
+  GATEWAY_PROJECT_PATH: 'src/Fifa2026.V2.Gateway'
+  GATEWAY_TEST_PATH: 'src/Fifa2026.V2.Gateway.Tests'
+  DOTNET_VERSION: '8.0.x'
+  IMAGE_NAME: 'gateway'
+  # --- frontend ---
+  FRONTEND_WORKING_DIR: 'Lovable/World Cup Tickets Hub'
+  NODE_VERSION: '20'
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # =========================================================
+      # BLOCO 1 — MIGRATIONS  (acao = tudo | migrations)
+      #   phase-01 (source/correlation_id) + phase-03 (purchases.entra_oid)
+      #   + phase-04-ciam-link (users.entra_oid — coluna vazia; preenchimento é hands-on)
+      # =========================================================
+      - name: '[migrations] Azure login (Service Principal)'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'migrations' }}
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: '[migrations] Resolver parâmetros + IP do runner'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'migrations' }}
+        run: |
+          set -euo pipefail
+          # Precedência: input manual -> GitHub Variable -> default.
+          SQL_SERVER="${{ inputs.sql_server || vars.SQL_SERVER || env.DEFAULT_SQL_SERVER }}"
+          RG="${{ inputs.resource_group || vars.RESOURCE_GROUP || env.DEFAULT_RESOURCE_GROUP }}"
+          RUNNER_IP="$(curl -fsS https://api.ipify.org)"
+          RULE_NAME="gh-migrate-${{ github.run_id }}"
+          {
+            echo "SQL_SERVER=$SQL_SERVER"
+            echo "RG=$RG"
+            echo "RUNNER_IP=$RUNNER_IP"
+            echo "RULE_NAME=$RULE_NAME"
+          } >> "$GITHUB_ENV"
+          echo "SQL: $SQL_SERVER | RG: $RG | runner IP: $RUNNER_IP | rule: $RULE_NAME"
+
+      - name: '[migrations] Abrir acesso temporário (público + firewall do runner)'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'migrations' }}
+        run: |
+          set -euo pipefail
+          az sql server update -g "$RG" -n "$SQL_SERVER" --set publicNetworkAccess=Enabled -o none
+          az sql server firewall-rule create -g "$RG" -s "$SQL_SERVER" \
+            -n "$RULE_NAME" --start-ip-address "$RUNNER_IP" --end-ip-address "$RUNNER_IP" -o none
+          echo "Acesso público + firewall abertos para $RUNNER_IP (regra $RULE_NAME)."
+          sleep 10
+
+      - name: '[migrations] phase-01 (source + correlation_id + UQ index)'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'migrations' }}
+        uses: azure/sql-action@v2
+        with:
+          connection-string: ${{ secrets.SQL_CONNECTION_STRING }}
+          path: fifa2026-api/database/migrations/phase-01.sql
+
+      - name: '[migrations] phase-03 (purchases.entra_oid + index)'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'migrations' }}
+        uses: azure/sql-action@v2
+        with:
+          connection-string: ${{ secrets.SQL_CONNECTION_STRING }}
+          path: fifa2026-api/database/migrations/phase-03.sql
+
+      - name: '[migrations] phase-04-ciam-link (users.entra_oid + UQ index, coluna vazia)'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'migrations' }}
+        uses: azure/sql-action@v2
+        with:
+          connection-string: ${{ secrets.SQL_CONNECTION_STRING }}
+          path: fifa2026-api/database/migrations/phase-04-ciam-link.sql
+
+      - name: '[migrations] Reverter acesso (sempre, mesmo em falha)'
+        # always() garante o revert mesmo se uma migration falhar; o guard interno
+        # evita reverter quando o bloco migrations nem deveria rodar (acao=gateway/frontend).
+        if: ${{ always() && (inputs.acao == 'tudo' || inputs.acao == 'migrations') }}
+        run: |
+          set +e
+          if [ -n "${SQL_SERVER:-}" ] && [ -n "${RG:-}" ]; then
+            if [ -n "${RULE_NAME:-}" ]; then
+              az sql server firewall-rule delete -g "$RG" -s "$SQL_SERVER" -n "$RULE_NAME" -o none
+            fi
+            az sql server update -g "$RG" -n "$SQL_SERVER" --set publicNetworkAccess=Disabled -o none
+            echo "Acesso revertido: regra removida e Public Network Access = Disabled."
+          else
+            echo "Contexto incompleto (passo de resolução falhou) — nada a reverter."
+          fi
+
+      # =========================================================
+      # BLOCO 2 — BACKEND v1  (acao = tudo | backend)
+      #   Deploy do backend Node/Express (inclui o middleware gatewayTrust.js do
+      #   "admin 100% workforce") + seta a App Setting GATEWAY_SHARED_SECRET (handshake
+      #   X-Gateway-Key com o gateway). O backend é PRIVADO (publicNetworkAccess=Disabled):
+      #   abrimos acesso temporário p/ o runner deployar via SCM e revertemos no fim,
+      #   espelhando o padrão abrir/reverter do bloco migrations.
+      #   Pré-req: SCM Basic Auth ON no Web App do backend (igual ao frontend).
+      # =========================================================
+      - name: '[backend] Azure login (Service Principal)'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'backend' }}
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: '[backend] Setup Node.js'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'backend' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: fifa2026-api/package-lock.json
+
+      - name: '[backend] Install prod deps + cleanup'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'backend' }}
+        working-directory: fifa2026-api
+        run: |
+          set -euo pipefail
+          npm ci --omit=dev
+          rm -rf logs src/logs
+          rm -f .env
+
+      - name: '[backend] Resolver parâmetros + abrir acesso temporário'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'backend' }}
+        run: |
+          set -euo pipefail
+          BACKEND_APP="${{ inputs.backend_app_name || vars.BACKEND_APP_NAME }}"
+          RG_BACK="${{ inputs.resource_group || vars.RESOURCE_GROUP || env.DEFAULT_RESOURCE_GROUP }}"
+          if [ -z "$BACKEND_APP" ]; then echo "::error::BACKEND_APP_NAME não definido (Variable)."; exit 1; fi
+          {
+            echo "BACKEND_APP=$BACKEND_APP"
+            echo "RG_BACK=$RG_BACK"
+          } >> "$GITHUB_ENV"
+          az webapp update -g "$RG_BACK" -n "$BACKEND_APP" --set publicNetworkAccess=Enabled -o none
+          echo "Backend $BACKEND_APP: acesso público temporário aberto para deploy."
+          sleep 10
+
+      - name: '[backend] Set GATEWAY_SHARED_SECRET (admin workforce)'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'backend' }}
+        run: |
+          set -euo pipefail
+          az webapp config appsettings set -g "$RG_BACK" -n "$BACKEND_APP" \
+            --settings GATEWAY_SHARED_SECRET="${{ secrets.GATEWAY_SHARED_SECRET }}" -o none
+          echo "GATEWAY_SHARED_SECRET aplicado no backend (handshake com o gateway)."
+
+      - name: '[backend] Deploy to Azure Web App'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'backend' }}
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.BACKEND_APP }}
+          publish-profile: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
+          package: fifa2026-api
+
+      - name: '[backend] Reverter acesso (sempre, mesmo em falha)'
+        if: ${{ always() && (inputs.acao == 'tudo' || inputs.acao == 'backend') }}
+        run: |
+          set +e
+          if [ -n "${BACKEND_APP:-}" ] && [ -n "${RG_BACK:-}" ]; then
+            az webapp update -g "$RG_BACK" -n "$BACKEND_APP" --set publicNetworkAccess=Disabled -o none
+            echo "Backend: Public Network Access = Disabled (revertido)."
+          else
+            echo "Contexto incompleto — nada a reverter."
+          fi
+
+      # =========================================================
+      # BLOCO 3 — GATEWAY YARP  (acao = tudo | gateway)
+      #   build/test do Gateway (+Tests) + build/push imagem + deploy Container App.
+      #   Espelha deploy-phase-02.yml.
+      # =========================================================
+      - name: '[gateway] Setup .NET'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'gateway' }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: '[gateway] Restore'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'gateway' }}
+        run: dotnet restore ${{ env.GATEWAY_PROJECT_PATH }}
+
+      - name: '[gateway] Build'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'gateway' }}
+        run: dotnet build ${{ env.GATEWAY_PROJECT_PATH }} -c Release --no-restore
+
+      - name: '[gateway] Test'
+        # SEM --no-build (lição do gate S2.1 / H-1): o dotnet test faz restore+build do
+        # projeto de testes E da dependência Fifa2026.V2.Gateway em Release.
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'gateway' }}
+        run: dotnet test ${{ env.GATEWAY_TEST_PATH }} -c Release --verbosity normal
+
+      - name: '[gateway] Azure login (Service Principal)'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'gateway' }}
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: '[gateway] ACR login'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'gateway' }}
+        run: az acr login --name ${{ vars.ACR_LOGIN_SERVER }}
+
+      - name: '[gateway] Build & push Docker image'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'gateway' }}
+        run: |
+          set -euo pipefail
+          IMAGE_TAG="${{ vars.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          docker build -t "$IMAGE_TAG" "${{ env.GATEWAY_PROJECT_PATH }}"
+          docker push "$IMAGE_TAG"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      - name: '[gateway] Deploy Container App'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'gateway' }}
+        env:
+          CONTAINERAPP_NAME: ${{ inputs.containerapp_name || vars.PHASE04_CONTAINERAPP_NAME }}
+        run: |
+          set -euo pipefail
+          az containerapp update \
+            --name "$CONTAINERAPP_NAME" \
+            --resource-group ${{ vars.PHASE04_RESOURCE_GROUP }} \
+            --image "$IMAGE_TAG"
+
+      - name: '[gateway] Smoke test (AC-6) — 401 sem token'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'gateway' }}
+        env:
+          CONTAINERAPP_NAME: ${{ inputs.containerapp_name || vars.PHASE04_CONTAINERAPP_NAME }}
+        run: |
+          set -euo pipefail
+          echo "Resolvendo FQDN do Container App..."
+          FQDN=$(az containerapp show \
+            --name "$CONTAINERAPP_NAME" \
+            --resource-group ${{ vars.PHASE04_RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "Aguardando warmup (cold start scale-to-zero)..."
+          sleep 20
+          # Sem Bearer → 401 (gateway fail-closed valida JWT CIAM/Admin). Validamos o código.
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://${FQDN}/purchase" \
+            -X POST -H "Content-Type: application/json" \
+            -d '{"matchId":1,"category":"VIP","userId":1,"quantity":1}')
+          echo "POST /purchase sem token → HTTP $CODE (esperado 401)."
+          test "$CODE" = "401"
+          # Health probe deve responder 200 (rota anônima).
+          curl -fsS "https://${FQDN}/health" | tee health.json
+          echo "Smoke test OK — 401 sem token + /health 200."
+
+      # =========================================================
+      # BLOCO 4 — FRONTEND  (acao = tudo | frontend)
+      #   build Vite com VITE_CIAM_* (authority CIAM) + deploy do Web App.
+      # =========================================================
+      - name: '[frontend] Setup Node.js'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'frontend' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.FRONTEND_WORKING_DIR }}/package-lock.json
+
+      - name: '[frontend] Install dependencies (npm ci)'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'frontend' }}
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
+        run: npm ci
+
+      - name: '[frontend] Build (vite)'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'frontend' }}
+        working-directory: ${{ env.FRONTEND_WORKING_DIR }}
+        env:
+          # Identidade CLIENTE via CIAM (ADE-007 Inv 1/2) — authority ciamlogin.com.
+          VITE_CIAM_AUTHORITY: ${{ vars.VITE_CIAM_AUTHORITY }}
+          VITE_CIAM_CLIENT_ID: ${{ vars.VITE_CIAM_CLIENT_ID }}
+          # Identidade ADMIN workforce via Entra (App Role Admin) — login da área /admin.
+          VITE_ADMIN_TENANT_ID: ${{ vars.VITE_ADMIN_TENANT_ID }}
+          VITE_ADMIN_CLIENT_ID: ${{ vars.VITE_ADMIN_CLIENT_ID }}
+          VITE_ADMIN_SCOPE: ${{ vars.VITE_ADMIN_SCOPE }}
+          # Gateway YARP v2 que o front chama com o Bearer CIAM.
+          VITE_GATEWAY_V2_URL: ${{ vars.GATEWAY_V2_URL }}
+          # Backend v1 same-origin (comparação didática — intocado).
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
+          VITE_API_URL: /api
+          # Compra v2 async (herdada de Oitavas) — presença = fluxo v2.
+          VITE_FUNCTION_V2_URL: ${{ vars.FUNCTION_V2_URL }}
+        run: npm run build
+
+      - name: '[frontend] Deploy to Azure Web App'
+        if: ${{ inputs.acao == 'tudo' || inputs.acao == 'frontend' }}
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ inputs.frontend_app_name || vars.FRONTEND_APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_FRONTEND_PUBLISH_PROFILE }}
+          package: '${{ env.FRONTEND_WORKING_DIR }}/dist'

@@ -1,0 +1,150 @@
+using Azure.Identity;
+using Azure.Monitor.Query;
+using Azure.Monitor.Query.Models;
+using Fifa2026.V2.FlowEvents.Models;
+
+namespace Fifa2026.V2.FlowEvents.Data;
+
+/// <summary>
+/// AC-3/AC-4 — implementação real que consulta o App Insights (Log Analytics workspace
+/// que recebe a telemetria dos 6 componentes) por correlationId via SDK OFICIAL
+/// Azure.Monitor.Query (LogsQueryClient). A query Kusto filtra
+/// customDimensions.CorrelationId == &lt;id&gt; (ADE-000 Inv 5 — BeginScope grava o
+/// CorrelationId como customDimension em todas as Functions/Gateway).
+///
+/// AUTENTICAÇÃO: DefaultAzureCredential (Managed Identity no Container App; az CLI/VS em
+/// dev). O workspace id vem do App Setting LogAnalyticsWorkspaceId (nunca hardcoded —
+/// ADE-003 Inv 3).
+///
+/// AC-13 anti-hallucination: LogsQueryClient.QueryWorkspaceAsync(workspaceId, query,
+/// timeRange) e LogsQueryResult.Table.Rows são APIs reais do Azure SDK for .NET.
+/// </summary>
+public sealed class AppInsightsFlowEventRepository : IFlowEventRepository
+{
+    private readonly LogsQueryClient _client;
+    private readonly string _workspaceId;
+    private readonly ILogger<AppInsightsFlowEventRepository> _logger;
+
+    public AppInsightsFlowEventRepository(IConfiguration configuration, ILogger<AppInsightsFlowEventRepository> logger)
+    {
+        _workspaceId = configuration["LogAnalyticsWorkspaceId"]
+            ?? throw new InvalidOperationException(
+                "App Setting 'LogAnalyticsWorkspaceId' não configurado. Defina o GUID do workspace " +
+                "Log Analytics que recebe a telemetria do App Insights (Story 2.6 AC-3).");
+        _logger = logger;
+        _client = new LogsQueryClient(new DefaultAzureCredential());
+    }
+
+    /// <summary>Query Kusto da timeline de um correlationId (validada contra docs.microsoft.com).</summary>
+    private const string TimelineQuery = """
+        traces
+        | where tostring(customDimensions.CorrelationId) == correlationId
+        | project timestamp, message, severityLevel, cloud_RoleName, customDimensions
+        | order by timestamp asc
+        | limit 100
+        """;
+
+    /// <summary>Query Kusto das últimas N compras (traces de entrada do gateway/entry).</summary>
+    private const string RecentQuery = """
+        traces
+        | where isnotempty(tostring(customDimensions.CorrelationId))
+        | summarize timestamp = min(timestamp), maxSeverity = max(severityLevel)
+            by correlationId = tostring(customDimensions.CorrelationId)
+        | order by timestamp desc
+        | limit topN
+        """;
+
+    public async Task<IReadOnlyList<FlowEvent>> GetTimelineAsync(string correlationId, CancellationToken cancellationToken = default)
+    {
+        // Parametrização Kusto via "declare" prefix evita injeção (correlationId é input externo).
+        var query = $"declare query_parameters(correlationId:string = '{Sanitize(correlationId)}');\n{TimelineQuery}";
+
+        var response = await _client.QueryWorkspaceAsync(
+            _workspaceId,
+            query,
+            new QueryTimeRange(TimeSpan.FromHours(1)),
+            cancellationToken: cancellationToken);
+
+        var table = response.Value.Table;
+        var events = new List<FlowEvent>(table.Rows.Count);
+
+        foreach (var row in table.Rows)
+        {
+            var timestamp = row.GetDateTimeOffset("timestamp") ?? DateTimeOffset.UtcNow;
+            var message = row.GetString("message");
+            var severity = (int)(row.GetInt32("severityLevel") ?? 1);
+            var role = row.GetString("cloud_RoleName");
+
+            var eventType = TraceEventMapper.Classify(role, message);
+            if (eventType is null)
+            {
+                continue;
+            }
+
+            events.Add(new FlowEvent
+            {
+                CorrelationId = correlationId,
+                EventType = eventType.Value,
+                Timestamp = timestamp,
+                Status = TraceEventMapper.StatusFromSeverity(severity),
+                Message = message
+            });
+        }
+
+        // Ordena por nó (mantém a ordem visual do diagrama mesmo se a ingestão chegar fora de ordem).
+        events.Sort((a, b) => a.NodeIndex.CompareTo(b.NodeIndex));
+        _logger.LogInformation("Timeline montada para correlationId com {Count} eventos.", events.Count);
+        return events;
+    }
+
+    public async Task<IReadOnlyList<RecentPurchase>> GetRecentPurchasesAsync(int top, CancellationToken cancellationToken = default)
+    {
+        var query = $"declare query_parameters(topN:int = {top});\n{RecentQuery}";
+
+        var response = await _client.QueryWorkspaceAsync(
+            _workspaceId,
+            query,
+            new QueryTimeRange(TimeSpan.FromDays(1)),
+            cancellationToken: cancellationToken);
+
+        var table = response.Value.Table;
+        var purchases = new List<RecentPurchase>(table.Rows.Count);
+
+        foreach (var row in table.Rows)
+        {
+            var correlationId = row.GetString("correlationId");
+            if (string.IsNullOrWhiteSpace(correlationId))
+            {
+                continue;
+            }
+
+            purchases.Add(new RecentPurchase
+            {
+                CorrelationId = correlationId,
+                Timestamp = row.GetDateTimeOffset("timestamp") ?? DateTimeOffset.UtcNow,
+                Status = TraceEventMapper.StatusFromSeverity((int)(row.GetInt32("maxSeverity") ?? 1))
+            });
+        }
+
+        return purchases;
+    }
+
+    /// <summary>
+    /// Defesa em profundidade: o correlationId é sempre um GUID; removemos qualquer
+    /// caractere fora de [0-9a-fA-F-] antes de interpolar no declare (a parametrização
+    /// Kusto já isola, mas mantemos sanitização explícita).
+    /// </summary>
+    private static string Sanitize(string value)
+    {
+        Span<char> buffer = stackalloc char[value.Length];
+        var n = 0;
+        foreach (var c in value)
+        {
+            if (Uri.IsHexDigit(c) || c == '-')
+            {
+                buffer[n++] = c;
+            }
+        }
+        return new string(buffer[..n]);
+    }
+}

@@ -24,6 +24,13 @@ build/
 **/dist/
 **/build/
 
+# ----- .NET build artifacts -----
+[Bb]in/
+[Oo]bj/
+**/[Bb]in/
+**/[Oo]bj/
+*.user
+
 # Vite cache
 .vite/
 **/.vite/
@@ -71,3 +78,23 @@ pnpm-lock.yaml
 # ----- Coverage -----
 coverage/
 *.lcov
+
+# Dependencies (AIOX)
+node_modules
+
+# AIOX Local (AIOX)
+.aiox-core/local/
+.claude/settings.local.json
+.aiox/install-log.txt
+
+# ----- Tooling de IA / assistentes (não versionar no repo do app) -----
+.aiox-core/
+.aiox/
+.antigravity/
+.claude/
+.codex/
+.cursor/
+.gemini/
+.kimi/
+.github/agents/
+infra/.claude/
