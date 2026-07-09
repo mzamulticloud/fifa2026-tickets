@@ -1,5 +1,6 @@
 # FIFA 2026 Tickets — Topologia & Deploy
 
+
 Aplicação dividida em **3 camadas**, com a mesma codebase rodando tanto em **VMs** quanto em **Azure Web App for Windows**. Em ambos os cenários:
 
 - O **frontend é o único componente público** (porta 80/443).
